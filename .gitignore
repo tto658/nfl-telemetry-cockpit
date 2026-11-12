@@ -32,10 +32,11 @@ tree.txt
 .agents/
 
 # Data & Large Datasets (NFL Big Data Bowl Tracking)
-data/
-artifacts/
-reports/
-logs/
+/data/
+/artifacts/
+/reports/
+/logs/
+!docs/data/**
 *.csv
 *.parquet
 *.duckdb
