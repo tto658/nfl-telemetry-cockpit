@@ -99,6 +99,27 @@ def main() -> None:
         if d_resp.status_code == 200:
             (p_dir / "dynamics.json").write_text(d_resp.text, encoding="utf-8")
 
+        # Spatial Drills List (Exported for ALL 510 players)
+        sp_resp = client.get(f"/api/spatial/drills?nfl_id={pid}")
+        if sp_resp.status_code == 200:
+            (data_dir / "spatial" / "drills" / f"{pid}.json").write_text(sp_resp.text, encoding="utf-8")
+
+        # Key combine tracking drills (FORTY_YARD_DASH, THREE_CONE, SHUTTLE) for all players
+        comb_file = p_dir / "combine.json"
+        if comb_file.exists():
+            comb_data = json.loads(comb_file.read_text(encoding="utf-8"))
+            for drill in comb_data.get("drills", []):
+                d_name = drill.get("drill_name", "")
+                if any(k in d_name for k in ["FORTY", "THREE_CONE", "SHUTTLE"]):
+                    eid = drill["event_id"]
+                    drills_dir = p_dir / "drills"
+                    drills_dir.mkdir(parents=True, exist_ok=True)
+                    drill_file = drills_dir / f"{safe_id(eid)}.json"
+                    if not drill_file.exists():
+                        d_resp = client.get(f"/api/player/{pid}/combine/{eid}")
+                        if d_resp.status_code == 200:
+                            drill_file.write_text(d_resp.text, encoding="utf-8")
+
         if (idx + 1) % 100 == 0 or (idx + 1) == len(players):
             print(f"   Progress: {idx + 1}/{len(players)} players exported ({time.time() - t_players:.1f}s)")
 
@@ -167,11 +188,7 @@ def main() -> None:
                     if snap_resp.status_code == 200:
                         (snap_dir / f"{gid}_{plid}.json").write_text(snap_resp.text, encoding="utf-8")
 
-        # 4. Spatial Drills List
-        sp_resp = client.get(f"/api/spatial/drills?nfl_id={pid}")
-        if sp_resp.status_code == 200:
-            (data_dir / "spatial" / "drills" / f"{pid}.json").write_text(sp_resp.text, encoding="utf-8")
-
+        # 4. Spatial Drills List (Already exported in pass 1 above)
         print(f"   [{idx + 1}/{len(featured_list)}] Player {pid} telemetry exported")
 
     # 5. Export Spatial Position Averages

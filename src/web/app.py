@@ -504,6 +504,7 @@ def get_player_gg_cloud(request: Request) -> Response:
 static_dir = Path(__file__).resolve().parent / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 index_html = static_dir / "index.html"
+compare_html = static_dir / "compare.html"
 if not index_html.exists():
     index_html.write_text("<!DOCTYPE html><html><head><title>NFL Tracking</title></head><body><h1>NFL Tracking Dashboard</h1></body></html>", encoding="utf-8")
 
@@ -511,8 +512,15 @@ def serve_index(request: Request) -> Response:
     """Serve index.html at root."""
     return FileResponse(str(index_html))
 
+def serve_compare(request: Request) -> Response:
+    """Serve compare.html subpage."""
+    return FileResponse(str(compare_html))
+
 routes = [
     Route("/", endpoint=serve_index, methods=["GET"]),
+    Route("/index.html", endpoint=serve_index, methods=["GET"]),
+    Route("/compare", endpoint=serve_compare, methods=["GET"]),
+    Route("/compare.html", endpoint=serve_compare, methods=["GET"]),
     Route("/api/players", endpoint=get_players, methods=["GET"]),
     Route("/api/player/{nfl_id:int}/summary", endpoint=get_player_summary, methods=["GET"]),
     Route("/api/metadata", endpoint=get_metadata, methods=["GET"]),

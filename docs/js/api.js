@@ -4,6 +4,8 @@
  * Supports both Live FastAPI Backend and Static Hosting (e.g. GitHub Pages).
  */
 
+import { resampleAndCompareTrajectories } from './spatial_engine.js';
+
 const API_BASE = '/api';
 const STATIC_BASE = './data';
 
@@ -221,7 +223,6 @@ export const api = {
 
     if (!data || !data.games) return { games: [] };
 
-    // In static mode, apply season / playType filter in memory
     let filteredGames = data.games;
     if (season) {
       filteredGames = filteredGames.filter(g => String(g.season) === String(season));
@@ -299,51 +300,111 @@ export const api = {
 
   /**
    * GET /api/spatial/drills?nfl_id={nflId}
+   * Robust: Falls back to combine.json drills array if spatial/drills is missing!
    */
   async fetchSpatialDrills(nflId) {
     if (!nflId) return { drills: [] };
-    const data = await fetchWithFallback(
+    const directData = await fetchWithFallback(
       `${API_BASE}/spatial/drills?nfl_id=${nflId}`,
       `spatial/drills/${nflId}.json`,
       `fetchSpatialDrills(${nflId})`
     );
-    return data || { drills: [] };
+    if (directData && Array.isArray(directData.drills) && directData.drills.length > 0) {
+      return directData;
+    }
+
+    // Fallback: Read from combine.json
+    try {
+      const combine = await this.fetchCombine(nflId);
+      if (combine && Array.isArray(combine.drills)) {
+        return {
+          drills: combine.drills.map(d => ({
+            event_id: d.event_id,
+            drill_name: d.drill_name || d.name || 'Combine Drill'
+          }))
+        };
+      }
+    } catch (_) {}
+
+    return { drills: [] };
   },
 
   /**
-   * GET /api/spatial/compare/combine
+   * Universal compareSpatialCombine with live backend API + fallback to in-browser client resampling.
    */
   async compareSpatialCombine(playerA, drillA, playerB, drillB, step = 0.5, milestones = null) {
-    const url = new URL(`${window.location.origin}${API_BASE}/spatial/compare/combine`);
-    url.searchParams.set('player_a', playerA);
-    url.searchParams.set('drill_a', drillA);
-    url.searchParams.set('player_b', playerB);
-    url.searchParams.set('drill_b', drillB);
-    url.searchParams.set('step', step);
-    if (milestones) url.searchParams.set('milestones', milestones);
+    if (!isStaticMode()) {
+      const url = new URL(`${window.location.origin}${API_BASE}/spatial/compare/combine`);
+      url.searchParams.set('player_a', playerA);
+      url.searchParams.set('drill_a', drillA);
+      url.searchParams.set('player_b', playerB);
+      url.searchParams.set('drill_b', drillB);
+      url.searchParams.set('step', step);
+      if (milestones) url.searchParams.set('milestones', milestones);
 
-    const safeDrillA = encodeURIComponent(drillA).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const safeDrillB = encodeURIComponent(drillB).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const staticPath = `spatial/compare_combine/${playerA}_${safeDrillA}_${playerB}_${safeDrillB}_${step}.json`;
+      try {
+        const res = await fetch(url.toString());
+        if (res.ok) return await res.json();
+      } catch (_) {}
+    }
 
-    return await fetchWithFallback(url.toString(), staticPath, `compareSpatialCombine(${playerA}, ${playerB})`);
+    // In static mode or if live API fails: Compute in-browser using spatial_engine!
+    try {
+      const payloadA = await this.fetchCombineDrill(playerA, drillA);
+      let payloadB = null;
+
+      if (playerB === 'POS_AVG') {
+        const drillName = drillA.includes('THREE') ? 'THREE_CONE' : (drillA.includes('SHUTTLE') ? 'SHUTTLE' : 'FORTY_YARD_DASH');
+        const summaryA = await this.fetchPlayerSummary(playerA);
+        const pos = summaryA?.nfl_position || summaryA?.position || 'WR';
+        const avgRes = await this.fetchSpatialPositionAvg(pos, drillName, step);
+        if (avgRes && avgRes.trajectory) {
+          payloadB = avgRes.trajectory;
+        }
+      } else {
+        payloadB = await this.fetchCombineDrill(playerB, drillB);
+      }
+
+      if (payloadA && payloadB) {
+        return resampleAndCompareTrajectories(payloadA, payloadB, step, drillA);
+      }
+    } catch (err) {
+      console.warn('[API] Client-side spatial combine comparison failed:', err);
+    }
+    return null;
   },
 
   /**
    * GET /api/spatial/compare/snap
    */
   async compareSpatialSnap(playerA, gameA, playA, playerB, gameB, playB, step = 0.5) {
-    const url = new URL(`${window.location.origin}${API_BASE}/spatial/compare/snap`);
-    url.searchParams.set('player_a', playerA);
-    url.searchParams.set('game_a', gameA);
-    url.searchParams.set('play_a', playA);
-    url.searchParams.set('player_b', playerB);
-    url.searchParams.set('game_b', gameB);
-    url.searchParams.set('play_b', playB);
-    url.searchParams.set('step', step);
+    if (!isStaticMode()) {
+      const url = new URL(`${window.location.origin}${API_BASE}/spatial/compare/snap`);
+      url.searchParams.set('player_a', playerA);
+      url.searchParams.set('game_a', gameA);
+      url.searchParams.set('play_a', playA);
+      url.searchParams.set('player_b', playerB);
+      url.searchParams.set('game_b', gameB);
+      url.searchParams.set('play_b', playB);
+      url.searchParams.set('step', step);
 
-    const staticPath = `spatial/compare_snap/${playerA}_${gameA}_${playA}_${playerB}_${gameB}_${playB}_${step}.json`;
-    return await fetchWithFallback(url.toString(), staticPath, `compareSpatialSnap(${playerA}, ${playerB})`);
+      try {
+        const res = await fetch(url.toString());
+        if (res.ok) return await res.json();
+      } catch (_) {}
+    }
+
+    // Fallback in-browser
+    try {
+      const snapA = await this.fetchSnap(playerA, gameA, playA);
+      const snapB = await this.fetchSnap(playerB, gameB, playB);
+      if (snapA && snapB) {
+        return resampleAndCompareTrajectories(snapA, snapB, step, 'snap');
+      }
+    } catch (err) {
+      console.warn('[API] Client-side spatial snap comparison failed:', err);
+    }
+    return null;
   },
 
   /**
@@ -360,7 +421,7 @@ export const api = {
   }
 };
 
-// Also expose globally on window
+// Expose globally on window
 if (typeof window !== 'undefined') {
   window.api = api;
 }

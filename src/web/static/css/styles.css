@@ -60,13 +60,13 @@ body.dark-theme {
    GLOBAL HEADER BAR
    ========================================================================== */
 /* ==========================================================================
-   GLOBAL HEADER BAR (Compact Single-Row Design)
+   GLOBAL HEADER BAR (Clean, Modular Navigation & Controls)
    ========================================================================== */
 .global-header {
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  padding: 0.35rem 1rem;
-  min-height: 40px;
+  padding: 0.4rem 1rem;
+  min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,9 +74,182 @@ body.dark-theme {
   position: sticky;
   top: 0;
   z-index: 50;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  flex-wrap: wrap;
+}
+
+.header-brand-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.header-nav-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background-color: rgba(15, 23, 42, 0.6);
+  padding: 0.15rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.nav-pill {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-xs, 3px);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all var(--transition-fast);
+}
+
+.nav-pill:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.nav-pill.active {
+  color: var(--color-cyan);
+  background-color: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.header-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   flex-wrap: nowrap;
-  overflow-x: auto;
+}
+
+.header-player-select {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.player-select-main {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  height: 28px;
+  width: 250px;
+  max-width: 280px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+/* ==========================================================================
+   PLAYER BIO BANNER (Structured 2-Row Design - Zero Superposition)
+   ========================================================================== */
+.bio-banner {
+  background: linear-gradient(180deg, #1e293b 0%, #111827 100%);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+  overflow: hidden;
+}
+
+.bio-banner.collapsed {
+  max-height: 0;
+  min-height: 0;
+  padding: 0 1rem;
+  opacity: 0;
+  border-bottom: none;
+  pointer-events: none;
+}
+
+.bio-row-primary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.bio-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.bio-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+
+.bio-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.bio-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  padding-left: 0.25rem;
+  border-left: 1px solid var(--border-color);
+}
+
+.bio-row-secondary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.career-stats-card {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background-color: rgba(15, 23, 42, 0.65);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  flex-wrap: wrap;
 }
 
 .header-brand {
@@ -252,120 +425,7 @@ body.dark-theme {
   border-color: var(--color-cyan);
 }
 
-/* ==========================================================================
-   PLAYER BIO BANNER (Streamlined Single-Row Ribbon)
-   ========================================================================== */
-.bio-banner {
-  background: linear-gradient(180deg, #1e293b 0%, #15202e 100%);
-  border-bottom: 1px solid var(--border-color);
-  padding: 0.25rem 1rem;
-  min-height: 34px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
-}
-
-.bio-banner.collapsed {
-  max-height: 0;
-  min-height: 0;
-  padding: 0 1rem;
-  opacity: 0;
-  overflow: hidden;
-  border-bottom: none;
-  pointer-events: none;
-}
-
-.bio-left {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.65rem;
-  flex-wrap: nowrap;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.bio-name-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: nowrap;
-}
-
-.bio-name {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-  margin: 0;
-  white-space: nowrap;
-}
-
-.badge {
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-sm);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.badge-position {
-  background-color: rgba(6, 182, 212, 0.15);
-  color: var(--color-cyan);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-}
-
-.badge-pick {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-light);
-}
-
-.badge-archetype {
-  font-size: 0.68rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-sm);
-}
-
-.bio-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.bio-meta-item strong {
-  color: var(--text-primary);
-  margin-left: 0.15rem;
-}
-
-.bio-meta-divider {
-  color: var(--text-muted);
-}
-
-.bio-right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.career-stats-card {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  background-color: rgba(15, 23, 42, 0.65);
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-}
+/* The old single-row bio banner rules were replaced by the structured 2-tier layout above */
 
 .stat-pill {
   display: flex;
