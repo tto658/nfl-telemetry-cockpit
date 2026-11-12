@@ -1524,7 +1524,7 @@ export class SpatialStripCanvas {
     }
 
     // 3. Floating HUD Tooltip (Vehicle Dynamics & Kinematics)
-    const hudW = 270;
+    const hudW = 315;
     const hudH = 120;
     // Smart placement: keep inside canvas bounds
     let hudX = crossX + 14;
@@ -1554,7 +1554,8 @@ export class SpatialStripCanvas {
     ctx.fillText(`d = ${d.toFixed(1)} yd`, hudX + 10, hudY + 8);
 
     const deltaSignColor = dt <= 0 ? THEME.leadA : THEME.leadB;
-    const deltaLeader = dt <= 0 ? (this.data.player_a_name || 'A') : (this.data.player_b_name || 'B');
+    const rawLeader = dt <= 0 ? (this.data.player_a_name || 'A') : (this.data.player_b_name || 'B');
+    const deltaLeader = rawLeader.length > 16 ? rawLeader.slice(0, 15) + '…' : rawLeader;
     ctx.fillStyle = deltaSignColor;
     ctx.textAlign = 'right';
     ctx.fillText(`Δt: ${formatDeltaTime(dt)} (${deltaLeader})`, hudX + hudW - 10, hudY + 8);
@@ -1571,7 +1572,8 @@ export class SpatialStripCanvas {
     ctx.font = `600 10px ${THEME.fontSans}`;
     ctx.fillStyle = THEME.playerA;
     ctx.textAlign = 'left';
-    ctx.fillText(this.data.player_a_name || 'Player A', hudX + 10, hudY + 30);
+    const nameAShort = (this.data.player_a_name || 'Player A').slice(0, 17);
+    ctx.fillText(nameAShort, hudX + 10, hudY + 30);
 
     ctx.font = `500 10px ${THEME.fontMono}`;
     ctx.fillStyle = THEME.textPrimary;
@@ -1584,7 +1586,8 @@ export class SpatialStripCanvas {
     ctx.font = `600 10px ${THEME.fontSans}`;
     ctx.fillStyle = THEME.playerB;
     ctx.textAlign = 'left';
-    ctx.fillText(this.data.player_b_name || 'Player B', hudX + 10, hudY + 46);
+    const nameBShort = (this.data.player_b_name || 'Player B').slice(0, 17);
+    ctx.fillText(nameBShort, hudX + 10, hudY + 46);
 
     ctx.font = `500 10px ${THEME.fontMono}`;
     ctx.fillStyle = THEME.textPrimary;
@@ -1597,8 +1600,10 @@ export class SpatialStripCanvas {
     ctx.font = `600 9px ${THEME.fontSans}`;
     ctx.fillStyle = THEME.textSecondary;
     ctx.textAlign = 'left';
-    const olA = ((this.data.overlap_index_a || 0) * 100).toFixed(0);
-    const olB = ((this.data.overlap_index_b || 0) * 100).toFixed(0);
+    const rawOlA = Number(this.data.overlap_index_a || 0);
+    const rawOlB = Number(this.data.overlap_index_b || 0);
+    const olA = (rawOlA > 1 ? rawOlA : rawOlA * 100).toFixed(0);
+    const olB = (rawOlB > 1 ? rawOlB : rawOlB * 100).toFixed(0);
     ctx.fillText(`Trail-Braking Overlap: A ${olA}% vs B ${olB}%`, hudX + 10, hudY + 64);
 
     // Apex Speed & Exit Traction or Status Alert
@@ -2323,8 +2328,10 @@ export class SpatialOverlayCanvas {
 
     ctx.font = `500 9px ${THEME.fontMono}`;
     ctx.fillStyle = THEME.textSecondary;
-    const olA = ((this.data?.overlap_index_a ?? 0) * 100).toFixed(0);
-    const olB = ((this.data?.overlap_index_b ?? 0) * 100).toFixed(0);
+    const rawOlA2 = Number(this.data?.overlap_index_a ?? 0);
+    const rawOlB2 = Number(this.data?.overlap_index_b ?? 0);
+    const olA = (rawOlA2 > 1 ? rawOlA2 : rawOlA2 * 100).toFixed(0);
+    const olB = (rawOlB2 > 1 ? rawOlB2 : rawOlB2 * 100).toFixed(0);
     ctx.fillText(`Overlap Index: A ${olA}% | B ${olB}%`, hudX + 10, hudY + 72);
 
     ctx.restore();

@@ -583,8 +583,10 @@ function renderSpatialSummaryKPIs(data) {
   }
 
   if (DOM.spatialOverlapIndex) {
-    const olA = ((data.overlap_index_a || 0) * 100).toFixed(0);
-    const olB = ((data.overlap_index_b || 0) * 100).toFixed(0);
+    const rawOlA = Number(data.overlap_index_a || 0);
+    const rawOlB = Number(data.overlap_index_b || 0);
+    const olA = (rawOlA > 1 ? rawOlA : rawOlA * 100).toFixed(0);
+    const olB = (rawOlB > 1 ? rawOlB : rawOlB * 100).toFixed(0);
     DOM.spatialOverlapIndex.textContent = `A: ${olA}% vs B: ${olB}%`;
   }
 
