@@ -1,0 +1,48 @@
+# Python & Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Testing & Linting
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+
+# Editor & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary Backups & Dumps
+Új mappa/
+Új mappa (2)/
+Új mappa*/
+tree.txt
+.agents/
+
+# Data & Large Datasets (NFL Big Data Bowl Tracking)
+data/
+artifacts/
+reports/
+logs/
+*.csv
+*.parquet
+*.duckdb
+*.pkl
+*.joblib
+combine_tracking_by_position/
+tracking_by_position/
+data_parquet/
+bdb2027/
+research-project1/

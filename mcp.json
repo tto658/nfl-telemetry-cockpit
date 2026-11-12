@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "research-duckdb": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-duckdb",
+        "--db-path",
+        "C:\\#NFL\\data\\processed\\research.duckdb",
+        "--readonly"
+      ]
+    },
+    "duckdb": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-duckdb",
+        "--db-path",
+        "C:\\#NFL\\data\\processed\\research.duckdb",
+        "--readonly"
+      ]
+    }
+  }
+}
