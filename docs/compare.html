@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spatial Telemetry Benchmark &amp; Overlay — NFL Tracking Lab</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+
+  <!-- ==================================================================== -->
+  <!-- GLOBAL HEADER BAR                                                    -->
+  <!-- ==================================================================== -->
+  <header class="global-header">
+    <div class="header-brand-nav">
+      <a href="index.html" class="header-brand">
+        <div class="brand-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="12" rx="10" ry="6" transform="rotate(-45 12 12)"/>
+            <line x1="8" y1="8" x2="16" y2="16"/>
+            <line x1="10.5" y1="10" x2="12" y2="11.5"/>
+            <line x1="12" y1="12.5" x2="13.5" y2="14"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">NFL TRACKING LAB</span>
+          <span class="brand-subtitle">Kinematics &amp; Telemetry</span>
+        </div>
+      </a>
+
+      <!-- Page Navigation Pills -->
+      <nav class="header-nav-pills">
+        <a href="index.html" class="nav-pill" title="Single-prospect deep dive">
+          <span>🏈</span> Prospect Explorer
+        </a>
+        <a href="compare.html" class="nav-pill active" title="Head-to-Head Spatial Comparison Lab">
+          <span>🏎️</span> Spatial Comparison
+        </a>
+      </nav>
+    </div>
+
+    <div class="header-controls">
+      <div class="header-filters">
+        <span class="text-secondary font-mono" style="font-size: 0.75rem;">F1-Grade Spatial Distance Resampling Lab</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================================================================== -->
+  <!-- MAIN CONTENT CONTAINER                                               -->
+  <!-- ==================================================================== -->
+  <main class="dashboard-main" style="padding-top: 1rem;">
+
+    <!-- Section: Overlay Selector & Controls -->
+    <section class="section-card spatial-controls-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Spatial Telemetry Benchmark &amp; Overlay</h2>
+          <span class="section-subtitle">Formula 1 Curvilinear Distance-Based Resampling [d(t) = &Sigma; dis] &bull; Phase-True Kinematic Overlay</span>
+        </div>
+        <div class="spatial-mode-toggle">
+          <button id="spatialModeCombine" class="mode-pill active" type="button">Combine Drill</button>
+          <button id="spatialModeSnap" class="mode-pill" type="button">Game Snap</button>
+        </div>
+      </div>
+
+      <div class="spatial-selector-grid">
+        <!-- Prospect A (Benchmark Focus) -->
+        <div class="selector-card selector-a">
+          <div class="selector-header">
+            <span class="player-badge badge-a">Prospect A (Primary)</span>
+            <span id="spatialNameA" class="selected-name text-cyan">--</span>
+          </div>
+          <div class="selector-controls">
+            <div class="control-row">
+              <label for="spatialPlayerA">Player A:</label>
+              <select id="spatialPlayerA" class="spatial-select"></select>
+            </div>
+            <div id="spatialCombineControlsA" class="control-row">
+              <label for="spatialDrillA">Drill A:</label>
+              <select id="spatialDrillA" class="spatial-select"></select>
+            </div>
+            <div id="spatialSnapControlsA" class="control-row" style="display: none;">
+              <label for="spatialGameA">Game / Play A:</label>
+              <div class="split-selects">
+                <select id="spatialGameA" class="spatial-select"></select>
+                <select id="spatialPlayA" class="spatial-select"></select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VS Divider & Swap -->
+        <div class="selector-middle">
+          <button id="spatialSwapBtn" class="swap-btn" type="button" title="Swap Prospect A and B">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/>
+            </svg>
+          </button>
+          <div class="vs-badge">VS</div>
+        </div>
+
+        <!-- Prospect B (Comparison / Position Benchmark) -->
+        <div class="selector-card selector-b">
+          <div class="selector-header">
+            <span class="player-badge badge-b">Prospect B (Comparison)</span>
+            <span id="spatialNameB" class="selected-name text-amber">--</span>
+          </div>
+          <div class="selector-controls">
+            <div class="control-row">
+              <label for="spatialPlayerB">Player B:</label>
+              <select id="spatialPlayerB" class="spatial-select">
+                <option value="POS_AVG">Position Benchmark Average</option>
+              </select>
+            </div>
+            <div id="spatialCombineControlsB" class="control-row">
+              <label for="spatialDrillB">Drill B:</label>
+              <select id="spatialDrillB" class="spatial-select"></select>
+            </div>
+            <div id="spatialSnapControlsB" class="control-row" style="display: none;">
+              <label for="spatialGameB">Game / Play B:</label>
+              <div class="split-selects">
+                <select id="spatialGameB" class="spatial-select"></select>
+                <select id="spatialPlayB" class="spatial-select"></select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar: Resolution & Action -->
+      <div class="spatial-toolbar">
+        <div class="toolbar-left">
+          <label for="spatialStepSelect" class="spatial-toolbar-label">Spatial Grid Step (&Delta;d):</label>
+          <select id="spatialStepSelect" class="toolbar-select">
+            <option value="0.5" selected>0.50 yd (F1 Standard)</option>
+            <option value="0.25">0.25 yd (High Precision)</option>
+            <option value="1.0">1.00 yd (Coarse Fast)</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button id="spatialCompareBtn" class="btn btn-primary" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Run Spatial Comparison
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Telemetry Overview Summary Cards -->
+    <section id="spatialSummarySection" class="section-card spatial-summary-grid" style="display: none;">
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Evaluated Distance</span>
+        <span id="spatialCommonDist" class="stat-val font-mono">0.0 yd</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Finish Line Delta (&Delta;t)</span>
+        <span id="spatialFinishDelta" class="stat-val font-mono">0.000 s</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Overall Pace Leader</span>
+        <span id="spatialLeaderBadge" class="badge">--</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Mini-Sector Score</span>
+        <span id="spatialSectorScore" class="stat-val font-mono">0 - 0</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">V-Max Differential (&Delta;s)</span>
+        <span id="spatialVMaxDelta" class="stat-val font-mono">0.0 yd/s</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Combined G-Force (Max)</span>
+        <span id="spatialGComb" class="stat-val font-mono text-amber">0.00g vs 0.00g</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Trail-Braking Overlap</span>
+        <span id="spatialOverlapIndex" class="stat-val font-mono text-cyan">0% vs 0%</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Key Apex Speed (v<sub>apex</sub>)</span>
+        <span id="spatialApexSpeed" class="stat-val font-mono text-emerald">-- yd/s</span>
+      </div>
+      <div class="stat-pill summary-stat">
+        <span class="stat-label">Corner Exit Traction</span>
+        <span id="spatialExitTraction" class="stat-val font-mono text-violet">-- yd/s&sup2;</span>
+      </div>
+    </section>
+
+    <!-- Section: 2D Spatial Overlay & Interactive Scrubber -->
+    <section class="section-card spatial-overlay-section">
+      <div class="section-header">
+        <div>
+          <h3 class="section-title">2D Curvilinear Trajectory Overlay</h3>
+          <span class="section-subtitle">Aligned Spatial Paths (Prospect A in Cyan &bull; Prospect B in Amber) &bull; Apex &amp; Cut Markers</span>
+        </div>
+        <div class="scrub-controls">
+          <button id="spatialScrubReset" class="ctrl-btn-sm" type="button" title="Reset to start">|&lt;</button>
+          <button id="spatialScrubPlay" class="ctrl-btn-sm" type="button" title="Play / Pause Distance Sweep">&gt;</button>
+          <span class="scrub-label">Scrub d: <strong id="spatialCurrentD" class="font-mono text-cyan">0.0 yd</strong></span>
+          <input type="range" id="spatialDistanceSlider" min="0" max="40" step="0.5" value="0" class="distance-slider">
+        </div>
+      </div>
+
+      <div class="canvas-container spatial-canvas-box">
+        <canvas id="spatialOverlayCanvas" width="900" height="340"></canvas>
+      </div>
+    </section>
+
+    <!-- Section: F1-Style 3-Lane Distance Telemetry Strip -->
+    <section class="section-card spatial-strip-section">
+      <div class="section-header">
+        <div>
+          <h3 class="section-title">F1 Curvilinear Distance Telemetry Strip</h3>
+          <span class="section-subtitle">Stacked 3-Lane Synchronized Kinematics Strip along Arc Length Axis [d &isin; 0..d_max]</span>
+        </div>
+        <div class="strip-header-actions">
+          <div class="strip-mode-toggle" id="btnStripLane3Toggle" role="group" aria-label="Lane 3 Telemetry Mode">
+            <span class="toggle-label">Lane 3:</span>
+            <button id="btnLane3Sideslip" class="btn-lane-toggle active" type="button" title="View Sideslip Angle">Sideslip &beta;(d)</button>
+            <button id="btnLane3GForce" class="btn-lane-toggle" type="button" title="View Combined G-Force">Combined G(d)</button>
+          </div>
+          <div class="strip-legend">
+            <span class="legend-chip chip-a"><span class="chip-color color-a"></span> Prospect A</span>
+            <span class="legend-chip chip-b"><span class="chip-color color-b"></span> Prospect B</span>
+            <span class="legend-chip chip-gain"><span class="chip-color color-gain"></span> A Ahead (&Delta;t &lt; 0)</span>
+            <span class="legend-chip chip-loss"><span class="chip-color color-loss"></span> B Ahead (&Delta;t &gt; 0)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strip Canvas Container -->
+      <div class="canvas-container spatial-strip-box">
+        <canvas id="spatialStripCanvas" width="1000" height="460"></canvas>
+      </div>
+    </section>
+
+    <!-- Section: Sector Breakdown & Milestone Comparison Table -->
+    <div class="spatial-tables-grid">
+      <!-- Milestone Split Board -->
+      <section class="section-card">
+        <div class="section-header">
+          <h3 class="section-title">Drill Milestone Split Times</h3>
+          <span class="section-subtitle">Geometric Apexes, Turns &amp; Split Gates</span>
+        </div>
+        <div class="table-container">
+          <table class="data-table" id="spatialMilestonesTable">
+            <thead>
+              <tr>
+                <th>Milestone Gate</th>
+                <th>Distance (d)</th>
+                <th>Time A</th>
+                <th>Time B</th>
+                <th>&Delta;Time</th>
+                <th>Speed A</th>
+                <th>Speed B</th>
+                <th>Split Leader</th>
+              </tr>
+            </thead>
+            <tbody id="spatialMilestonesBody">
+              <tr><td colspan="8" class="text-muted text-center">Run spatial comparison to inspect milestones.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Mini-Sector Timing Board -->
+      <section class="section-card">
+        <div class="section-header">
+          <h3 class="section-title">F1 5-Yard Mini-Sector Leaderboard</h3>
+          <span class="section-subtitle">Telescoping Differential Sum [&Sigma; &Delta;T_k = &Delta;t_finish]</span>
+        </div>
+        <div class="table-container">
+          <table class="data-table" id="spatialSectorsTable">
+            <thead>
+              <tr>
+                <th>Sector</th>
+                <th>Arc Span</th>
+                <th>Time A</th>
+                <th>Time B</th>
+                <th>&Delta;T (Sector)</th>
+                <th>Avg Speed A</th>
+                <th>Avg Speed B</th>
+                <th>Sector Winner</th>
+              </tr>
+            </thead>
+            <tbody id="spatialSectorsBody">
+              <tr><td colspan="8" class="text-muted text-center">Run spatial comparison to inspect mini-sectors.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- Global Loading Spinner Overlay -->
+  <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="spinner-container">
+      <div class="spinner"></div>
+      <span id="loadingMessage" class="loading-text">Loading telemetry...</span>
+    </div>
+  </div>
+
+  <!-- Global Toast Notification -->
+  <div id="toastNotification" class="toast" style="display: none;">
+    <span id="toastMessage"></span>
+  </div>
+
+  <!-- Scripts (ES6 Module Entrypoints) -->
+  <script type="module" src="./js/spatial_strip.js"></script>
+  <script type="module" src="./js/spatial_engine.js"></script>
+  <script type="module" src="./js/compare_app.js"></script>
+</body>
+</html>

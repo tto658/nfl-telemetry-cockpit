@@ -51,7 +51,8 @@ def main() -> None:
 
     # 2. Copy static web assets
     print("-> Copying frontend HTML, CSS, and JavaScript modules...")
-    shutil.copy2(STATIC_SRC / "index.html", DOCS_DIR / "index.html")
+    for html_file in STATIC_SRC.glob("*.html"):
+        shutil.copy2(html_file, DOCS_DIR / html_file.name)
     shutil.copy2(STATIC_SRC / "css" / "styles.css", DOCS_DIR / "css" / "styles.css")
     for js_file in (STATIC_SRC / "js").glob("*.js"):
         shutil.copy2(js_file, DOCS_DIR / "js" / js_file.name)

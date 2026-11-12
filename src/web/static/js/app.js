@@ -1333,40 +1333,37 @@ function setupEventListeners() {
     });
   }
 
-  // 1-Click Cross-Tab Spatial Lab Bridges
+  // 1-Click Cross-Page Spatial Lab Bridges
   if (DOM.btnSendDrillToSpatial) {
-    DOM.btnSendDrillToSpatial.addEventListener('click', async () => {
+    DOM.btnSendDrillToSpatial.addEventListener('click', (e) => {
+      e.preventDefault();
       if (!state.selectedPlayerId) return;
-      switchTab('tab-spatial');
-      setSpatialMode('combine');
-      if (DOM.spatialPlayerA) {
-        DOM.spatialPlayerA.value = state.selectedPlayerId;
+      const params = new URLSearchParams({
+        mode: 'combine',
+        player_a: state.selectedPlayerId
+      });
+      if (state.selectedDrillId) {
+        params.set('drill_a', state.selectedDrillId);
       }
-      await onSpatialPlayerAChange();
-      if (state.selectedDrillId && DOM.spatialDrillA) {
-        DOM.spatialDrillA.value = state.selectedDrillId;
-      }
-      await runSpatialComparison();
+      window.location.href = `compare.html?${params.toString()}`;
     });
   }
 
   if (DOM.btnSendSnapToSpatial) {
-    DOM.btnSendSnapToSpatial.addEventListener('click', async () => {
+    DOM.btnSendSnapToSpatial.addEventListener('click', (e) => {
+      e.preventDefault();
       if (!state.selectedPlayerId) return;
-      switchTab('tab-spatial');
-      setSpatialMode('snap');
-      if (DOM.spatialPlayerA) {
-        DOM.spatialPlayerA.value = state.selectedPlayerId;
+      const params = new URLSearchParams({
+        mode: 'snap',
+        player_a: state.selectedPlayerId
+      });
+      if (state.gameExplorer.selectedGameId) {
+        params.set('game_a', state.gameExplorer.selectedGameId);
       }
-      await onSpatialPlayerAChange();
-      if (state.gameExplorer.selectedGameId && DOM.spatialGameA) {
-        DOM.spatialGameA.value = state.gameExplorer.selectedGameId;
-        await onSpatialGameAChange();
-        if (state.gameExplorer.selectedPlayId && DOM.spatialPlayA) {
-          DOM.spatialPlayA.value = state.gameExplorer.selectedPlayId;
-        }
+      if (state.gameExplorer.selectedPlayId) {
+        params.set('play_a', state.gameExplorer.selectedPlayId);
       }
-      await runSpatialComparison();
+      window.location.href = `compare.html?${params.toString()}`;
     });
   }
 
