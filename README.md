@@ -2,6 +2,10 @@
 
 > **Next Gen Stats Biomechanics, Vehicle Dynamics & F1-Style Spatial Telemetry Platform for NFL Tracking Data**
 
+[![GitHub Pages](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?style=for-the-badge&logo=github)](https://tto658.github.io/nfl-telemetry-cockpit/)
+
+🌐 **Live Interactive Website:** **[https://tto658.github.io/nfl-telemetry-cockpit/](https://tto658.github.io/nfl-telemetry-cockpit/)**
+
 A high-performance, auditable analytics platform and interactive web dashboard applying motorsports telemetry principles (Kamm Friction Circles, Yaw/Sideslip dynamics, Arc-Length Spatial Resampling, and 2D Kernel Density Estimation) to NFL Next Gen Stats player tracking data.
 
 ---
