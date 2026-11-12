@@ -5,6 +5,7 @@
  */
 
 import { GGDiagramCanvas } from './gg_diagram.js';
+import { api } from './api.js';
 
 /**
  * Scout Verdict & Biomechanical Archetype Manager
@@ -18,9 +19,8 @@ export async function updateBioArchetypeBadge(nflId, summary, combine) {
   badge.className = 'badge badge-archetype loading';
 
   try {
-    const res = await fetch(`/api/player/${nflId}/dynamics`);
-    if (res.ok) {
-      const data = await res.json();
+    const data = await api.fetchDynamics(nflId);
+    if (data) {
       const rawVerdict = data.archetype || data.scout_verdict || data.verdict || data.biomechanical_archetype;
       if (rawVerdict) {
         const label = typeof rawVerdict === 'object' ? (rawVerdict.label || rawVerdict.code || 'BALANCED MOVER') : String(rawVerdict);
@@ -114,12 +114,7 @@ export class CockpitGGController {
   async fetchPlayerCloud(nflId, scope = 'season') {
     if (!nflId) return null;
     try {
-      const res = await fetch(`/api/player/${nflId}/gg-kde?scope=${scope}`);
-      if (!res.ok) {
-        console.warn(`Failed to fetch gg-kde for ${nflId}:`, res.status);
-        return null;
-      }
-      return await res.json();
+      return await api.fetchGGKdeCloud(nflId, scope);
     } catch (err) {
       console.warn(`Network error fetching gg-kde for ${nflId}:`, err);
       return null;

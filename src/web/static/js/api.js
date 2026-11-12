@@ -1,48 +1,90 @@
 /**
  * NFL Tracking & Combine Explorer - Backend API Client Module
  * Exclusively consumes FrameDTO and backend endpoint contracts.
+ * Supports both Live FastAPI Backend and Static Hosting (e.g. GitHub Pages).
  */
 
 const API_BASE = '/api';
+const STATIC_BASE = './data';
+
+// Cached all players array for client-side filtering on static hosting
+let _staticAllPlayersCache = null;
 
 /**
- * Handle fetch response with safe status handling.
- * @param {Response} response
- * @param {string} endpointName
+ * Determine if the application is running in a static hosting environment.
  */
-async function handleResponse(response, endpointName) {
-  if (!response.ok) {
-    if (response.status === 404) {
-      console.warn(`[API] 404 Not Found at ${endpointName}`);
+function isStaticMode() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.location.hostname.endsWith('github.io') ||
+    window.location.protocol === 'file:' ||
+    window.location.pathname.includes('/docs/')
+  );
+}
+
+/**
+ * Safe fetch with automatic fallback between live API and pre-generated static data.
+ * @param {string} liveUrl 
+ * @param {string} staticPath 
+ * @param {string} endpointName 
+ */
+async function fetchWithFallback(liveUrl, staticPath, endpointName) {
+  // 1. If explicitly in static environment (GitHub Pages / file://), go straight to static JSON
+  if (isStaticMode()) {
+    try {
+      const res = await fetch(`${STATIC_BASE}/${staticPath}`);
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn(`[API] Static fetch failed for ${staticPath}:`, e);
+    }
+  }
+
+  // 2. Otherwise try live backend endpoint
+  try {
+    const res = await fetch(liveUrl);
+    if (res.ok) {
+      return await res.json();
+    }
+    // If live returns 404, attempt static fallback
+    if (res.status === 404) {
+      const staticRes = await fetch(`${STATIC_BASE}/${staticPath}`);
+      if (staticRes.ok) return await staticRes.json();
       return null;
     }
-    const errorText = await response.text();
-    throw new Error(`[API] ${endpointName} failed (${response.status}): ${errorText}`);
+    const errText = await res.text();
+    console.warn(`[API] ${endpointName} failed (${res.status}): ${errText}`);
+  } catch (err) {
+    // Network failure (offline or pure static server without backend)
+    try {
+      const staticRes = await fetch(`${STATIC_BASE}/${staticPath}`);
+      if (staticRes.ok) return await staticRes.json();
+    } catch (_) {}
+    console.warn(`[API] Fetch error for ${endpointName}:`, err);
   }
-  return await response.json();
+  return null;
 }
 
 export const api = {
+  isStaticMode,
+
   /**
    * GET /api/metadata
    * Returns: { draft_years: number[], positions: string[], teams: string[], total_players: number }
    */
   async fetchMetadata() {
-    try {
-      const res = await fetch(`${API_BASE}/metadata`);
-      return await handleResponse(res, 'fetchMetadata');
-    } catch (err) {
-      console.error('Error fetching metadata:', err);
-      return { draft_years: [2023, 2024, 2025], positions: [], teams: [], total_players: 0 };
-    }
+    const data = await fetchWithFallback(`${API_BASE}/metadata`, 'metadata.json', 'fetchMetadata');
+    return data || { draft_years: [2023, 2024, 2025], positions: [], teams: [], total_players: 0 };
   },
 
   /**
    * GET /api/players?draft_year={year}&pos={pos}&team_abbr={team}&q={search}
-   * @param {Object} params { draft_year?: number|string, pos?: string, team_abbr?: string, q?: string }
    * Returns: PlayerListItem[]
    */
   async fetchPlayers(params = {}) {
+    if (isStaticMode()) {
+      return this._filterStaticPlayers(params);
+    }
+
     const url = new URL(`${window.location.origin}${API_BASE}/players`);
     if (params.draft_year) url.searchParams.set('draft_year', params.draft_year);
     if (params.pos) url.searchParams.set('pos', params.pos);
@@ -51,112 +93,180 @@ export const api = {
 
     try {
       const res = await fetch(url.toString());
-      const data = await handleResponse(res, 'fetchPlayers');
-      return Array.isArray(data) ? data : [];
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+      return this._filterStaticPlayers(params);
     } catch (err) {
-      console.error('Error fetching players:', err);
-      return [];
+      return this._filterStaticPlayers(params);
     }
+  },
+
+  /**
+   * Client-side player filtering for static hosting mode.
+   */
+  async _filterStaticPlayers(params = {}) {
+    if (!_staticAllPlayersCache) {
+      try {
+        const res = await fetch(`${STATIC_BASE}/players.json`);
+        if (res.ok) {
+          _staticAllPlayersCache = await res.json();
+        }
+      } catch (err) {
+        console.error('Error loading static players.json:', err);
+        return [];
+      }
+    }
+
+    let list = _staticAllPlayersCache || [];
+    if (params.draft_year) {
+      const yr = String(params.draft_year);
+      list = list.filter(p => String(p.draft_year) === yr);
+    }
+    if (params.pos) {
+      const pos = String(params.pos).toUpperCase();
+      list = list.filter(p => (p.position || '').toUpperCase() === pos);
+    }
+    if (params.team_abbr) {
+      const tm = String(params.team_abbr).toUpperCase();
+      list = list.filter(p => Array.isArray(p.teams) && p.teams.map(t => String(t).toUpperCase()).includes(tm));
+    }
+    if (params.q && params.q.trim()) {
+      const q = params.q.trim().toLowerCase();
+      list = list.filter(p =>
+        (p.display_name && p.display_name.toLowerCase().includes(q)) ||
+        (p.college && p.college.toLowerCase().includes(q))
+      );
+    }
+    return list;
   },
 
   /**
    * GET /api/player/{nfl_id}/summary
-   * Returns: { nfl_id, display_name, position, draft_year, teams, bio, combine, career }
    */
   async fetchPlayerSummary(nflId) {
     if (!nflId) return null;
-    try {
-      const res = await fetch(`${API_BASE}/player/${nflId}/summary`);
-      return await handleResponse(res, `fetchPlayerSummary(${nflId})`);
-    } catch (err) {
-      console.error(`Error fetching summary for player ${nflId}:`, err);
-      return null;
-    }
+    return await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/summary`,
+      `player/${nflId}/summary.json`,
+      `fetchPlayerSummary(${nflId})`
+    );
   },
 
   /**
    * GET /api/player/{nfl_id}/combine
-   * Returns: { combine_tests, opt_outs, ngs_scores, forty, vertical, ..., drills: Array }
    */
   async fetchCombine(nflId) {
     if (!nflId) return null;
-    try {
-      const res = await fetch(`${API_BASE}/player/${nflId}/combine`);
-      return await handleResponse(res, `fetchCombine(${nflId})`);
-    } catch (err) {
-      console.error(`Error fetching combine data for player ${nflId}:`, err);
-      return null;
-    }
+    return await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/combine`,
+      `player/${nflId}/combine.json`,
+      `fetchCombine(${nflId})`
+    );
   },
 
   /**
    * GET /api/player/{nfl_id}/combine/{event_id}
-   * Returns: { drill_name, metrics, s_max, a_max, duration, kappa_90, player_frames: FrameDTO[], ball_frames: FrameDTO[] }
    */
   async fetchCombineDrill(nflId, eventId) {
     if (!nflId || !eventId) return null;
-    try {
-      const res = await fetch(`${API_BASE}/player/${nflId}/combine/${encodeURIComponent(eventId)}`);
-      return await handleResponse(res, `fetchCombineDrill(${nflId}, ${eventId})`);
-    } catch (err) {
-      console.error(`Error fetching drill ${eventId} for player ${nflId}:`, err);
-      return null;
-    }
+    const safeEventId = encodeURIComponent(eventId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    return await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/combine/${encodeURIComponent(eventId)}`,
+      `player/${nflId}/drills/${safeEventId}.json`,
+      `fetchCombineDrill(${nflId}, ${eventId})`
+    );
+  },
+
+  /**
+   * GET /api/player/{nfl_id}/dynamics
+   */
+  async fetchDynamics(nflId) {
+    if (!nflId) return null;
+    return await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/dynamics`,
+      `player/${nflId}/dynamics.json`,
+      `fetchDynamics(${nflId})`
+    );
+  },
+
+  /**
+   * GET /api/player/{nfl_id}/gg-kde?scope={scope}
+   */
+  async fetchGGKdeCloud(nflId, scope = 'season') {
+    if (!nflId) return null;
+    return await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/gg-kde?scope=${scope}`,
+      `player/${nflId}/gg_kde/${scope}.json`,
+      `fetchGGKdeCloud(${nflId}, ${scope})`
+    );
   },
 
   /**
    * GET /api/player/{nfl_id}/games?season={season}&play_type={playType}
-   * Returns: { games: GameSummary[] }
    */
   async fetchGames(nflId, season = null, playType = null) {
     if (!nflId) return { games: [] };
-    const url = new URL(`${window.location.origin}${API_BASE}/player/${nflId}/games`);
-    if (season) url.searchParams.set('season', season);
-    if (playType) url.searchParams.set('play_type', playType);
+    const query = new URLSearchParams();
+    if (season) query.set('season', season);
+    if (playType) query.set('play_type', playType);
+    const qs = query.toString() ? `?${query.toString()}` : '';
 
-    try {
-      const res = await fetch(url.toString());
-      const data = await handleResponse(res, `fetchGames(${nflId})`);
-      return data || { games: [] };
-    } catch (err) {
-      console.error(`Error fetching games for player ${nflId}:`, err);
-      return { games: [] };
+    const data = await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/games${qs}`,
+      `player/${nflId}/games.json`,
+      `fetchGames(${nflId})`
+    );
+
+    if (!data || !data.games) return { games: [] };
+
+    // In static mode, apply season / playType filter in memory
+    let filteredGames = data.games;
+    if (season) {
+      filteredGames = filteredGames.filter(g => String(g.season) === String(season));
     }
+    if (playType) {
+      filteredGames = filteredGames.map(g => {
+        const plays = (g.plays || []).filter(p => {
+          if (playType === 'RUN') return p.is_run === true;
+          if (playType === 'PASS') return p.is_run === false;
+          return true;
+        });
+        return { ...g, plays, play_count: plays.length };
+      }).filter(g => g.play_count > 0);
+    }
+    return { games: filteredGames };
   },
 
   /**
    * GET /api/player/{nfl_id}/plays/{game_id}?lined_up_position={pos}&play_type={type}
-   * Returns: PlaySummary[]
    */
   async fetchPlays(nflId, gameId, params = {}) {
     if (!nflId || !gameId) return [];
-    const url = new URL(`${window.location.origin}${API_BASE}/player/${nflId}/plays/${gameId}`);
-    if (params.lined_up_position) url.searchParams.set('lined_up_position', params.lined_up_position);
-    if (params.play_type) url.searchParams.set('play_type', params.play_type);
+    const query = new URLSearchParams();
+    if (params.lined_up_position) query.set('lined_up_position', params.lined_up_position);
+    if (params.play_type) query.set('play_type', params.play_type);
+    const qs = query.toString() ? `?${query.toString()}` : '';
 
-    try {
-      const res = await fetch(url.toString());
-      const data = await handleResponse(res, `fetchPlays(${nflId}, ${gameId})`);
-      return Array.isArray(data) ? data : [];
-    } catch (err) {
-      console.error(`Error fetching plays for player ${nflId}, game ${gameId}:`, err);
-      return [];
-    }
+    const data = await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/plays/${gameId}${qs}`,
+      `player/${nflId}/plays/${gameId}.json`,
+      `fetchPlays(${nflId}, ${gameId})`
+    );
+    return Array.isArray(data) ? data : [];
   },
 
   /**
    * GET /api/player/{nfl_id}/snap/{game_id}/{play_id}
-   * Returns: { game_id, play_id, frames: FrameDTO[], events: EventMarker[] }
    */
   async fetchSnap(nflId, gameId, playId) {
     if (!nflId || !gameId || !playId) return null;
-    try {
-      const res = await fetch(`${API_BASE}/player/${nflId}/snap/${gameId}/${playId}`);
-      return await handleResponse(res, `fetchSnap(${nflId}, ${gameId}, ${playId})`);
-    } catch (err) {
-      console.error(`Error fetching snap ${playId} for player ${nflId}, game ${gameId}:`, err);
-      return null;
-    }
+    return await fetchWithFallback(
+      `${API_BASE}/player/${nflId}/snap/${gameId}/${playId}`,
+      `player/${nflId}/snap/${gameId}_${playId}.json`,
+      `fetchSnap(${nflId}, ${gameId}, ${playId})`
+    );
   },
 
   /**
@@ -189,17 +299,15 @@ export const api = {
 
   /**
    * GET /api/spatial/drills?nfl_id={nflId}
-   * Returns: { drills: [{event_id, drill_name}, ...] }
    */
   async fetchSpatialDrills(nflId) {
     if (!nflId) return { drills: [] };
-    try {
-      const res = await fetch(`${API_BASE}/spatial/drills?nfl_id=${nflId}`);
-      return await handleResponse(res, `fetchSpatialDrills(${nflId})`) || { drills: [] };
-    } catch (err) {
-      console.error(`Error fetching spatial drills for player ${nflId}:`, err);
-      return { drills: [] };
-    }
+    const data = await fetchWithFallback(
+      `${API_BASE}/spatial/drills?nfl_id=${nflId}`,
+      `spatial/drills/${nflId}.json`,
+      `fetchSpatialDrills(${nflId})`
+    );
+    return data || { drills: [] };
   },
 
   /**
@@ -214,13 +322,11 @@ export const api = {
     url.searchParams.set('step', step);
     if (milestones) url.searchParams.set('milestones', milestones);
 
-    try {
-      const res = await fetch(url.toString());
-      return await handleResponse(res, `compareSpatialCombine(${playerA}, ${playerB})`);
-    } catch (err) {
-      console.error('Error comparing spatial combine drills:', err);
-      return null;
-    }
+    const safeDrillA = encodeURIComponent(drillA).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeDrillB = encodeURIComponent(drillB).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const staticPath = `spatial/compare_combine/${playerA}_${safeDrillA}_${playerB}_${safeDrillB}_${step}.json`;
+
+    return await fetchWithFallback(url.toString(), staticPath, `compareSpatialCombine(${playerA}, ${playerB})`);
   },
 
   /**
@@ -236,13 +342,8 @@ export const api = {
     url.searchParams.set('play_b', playB);
     url.searchParams.set('step', step);
 
-    try {
-      const res = await fetch(url.toString());
-      return await handleResponse(res, `compareSpatialSnap(${playerA}, ${playerB})`);
-    } catch (err) {
-      console.error('Error comparing spatial snaps:', err);
-      return null;
-    }
+    const staticPath = `spatial/compare_snap/${playerA}_${gameA}_${playA}_${playerB}_${gameB}_${playB}_${step}.json`;
+    return await fetchWithFallback(url.toString(), staticPath, `compareSpatialSnap(${playerA}, ${playerB})`);
   },
 
   /**
@@ -254,13 +355,8 @@ export const api = {
     url.searchParams.set('drill_name', drillName);
     url.searchParams.set('step', step);
 
-    try {
-      const res = await fetch(url.toString());
-      return await handleResponse(res, `fetchSpatialPositionAvg(${position})`);
-    } catch (err) {
-      console.error('Error fetching position average:', err);
-      return null;
-    }
+    const staticPath = `spatial/position_avg/${position}_${drillName}_${step}.json`;
+    return await fetchWithFallback(url.toString(), staticPath, `fetchSpatialPositionAvg(${position})`);
   }
 };
 

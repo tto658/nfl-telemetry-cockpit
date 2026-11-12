@@ -528,6 +528,8 @@ routes = [
     Route("/api/spatial/compare/snap", endpoint=compare_spatial_snap, methods=["GET"]),
     Route("/api/spatial/position_avg", endpoint=get_spatial_position_avg, methods=["GET"]),
     Mount("/static", app=StaticFiles(directory=str(static_dir), html=True), name="static"),
+    Mount("/css", app=StaticFiles(directory=str(static_dir / "css")), name="css"),
+    Mount("/js", app=StaticFiles(directory=str(static_dir / "js")), name="js"),
 ]
 
 middleware = [
