@@ -6,15 +6,8 @@
  */
 
 import { api } from './api.js';
-import { SpatialStripCanvas } from './spatial_strip.js';
-import {
-  resampleCombineDrill,
-  resampleGameSnap,
-  alignAndCompareCurvilinear,
-  computeMiniSectors,
-  detectApexes,
-  computeMilestones
-} from './spatial_engine.js';
+import { SpatialStripCanvas, SpatialOverlayCanvas } from './spatial_strip.js';
+import { resampleAndCompareTrajectories } from './spatial_engine.js';
 
 // Global state
 const state = {
@@ -123,186 +116,26 @@ function showToast(msg, duration = 3000) {
   }
 }
 
-// 2D Curvilinear Overlay Canvas Implementation
-class SpatialOverlayCanvas {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    this.data = null;
-    this.scrubDistance = 0;
-    this.setupResizeObserver();
-  }
-
-  setupResizeObserver() {
-    if (typeof ResizeObserver !== 'undefined' && this.canvas.parentElement) {
-      const ro = new ResizeObserver(() => {
-        this.resize();
-        this.render();
-      });
-      ro.observe(this.canvas.parentElement);
-    }
-  }
-
-  resize() {
-    const parent = this.canvas.parentElement;
-    if (!parent) return;
-    const w = parent.clientWidth || 900;
-    const h = 340;
-    const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = Math.floor(w * dpr);
-    this.canvas.height = Math.floor(h * dpr);
-    this.canvas.style.width = `${w}px`;
-    this.canvas.style.height = `${h}px`;
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.scale(dpr, dpr);
-  }
-
-  setData(data) {
-    this.data = data;
-    this.scrubDistance = 0;
-    this.resize();
-    this.render();
-  }
-
-  setScrubDistance(d) {
-    this.scrubDistance = d;
-    this.render();
-  }
-
-  render() {
-    const ctx = this.ctx;
-    const w = this.canvas.clientWidth || 900;
-    const h = this.canvas.clientHeight || 340;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Dark grid background
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, w, h);
-
-    // Subtle grid lines
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    for (let x = 40; x < w; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-    for (let y = 30; y < h; y += 30) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-
-    if (!this.data) {
-      ctx.fillStyle = '#64748b';
-      ctx.font = '14px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Select Prospect A & B and click "Run Spatial Comparison"', w / 2, h / 2);
-      return;
-    }
-
-    const trajA = this.data.resampled_a || [];
-    const trajB = this.data.resampled_b || [];
-    if (trajA.length === 0 && trajB.length === 0) return;
-
-    // Find bounding box across both trajectories
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    [...trajA, ...trajB].forEach(pt => {
-      const px = pt.x ?? pt[0] ?? 0;
-      const py = pt.y ?? pt[1] ?? 0;
-      if (px < minX) minX = px;
-      if (px > maxX) maxX = px;
-      if (py < minY) minY = py;
-      if (py > maxY) maxY = py;
-    });
-
-    const spanX = Math.max(maxX - minX, 10);
-    const spanY = Math.max(maxY - minY, 5);
-    const pad = 40;
-    const scale = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
-
-    const toX = (x) => pad + (x - minX) * scale;
-    const toY = (y) => h - pad - (y - minY) * scale;
-
-    // Helper: draw trajectory
-    const drawTraj = (traj, color, shadowColor) => {
-      if (traj.length < 2) return;
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.shadowColor = shadowColor;
-      ctx.shadowBlur = 6;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      traj.forEach((pt, idx) => {
-        const cx = toX(pt.x ?? pt[0] ?? 0);
-        const cy = toY(pt.y ?? pt[1] ?? 0);
-        if (idx === 0) ctx.moveTo(cx, cy);
-        else ctx.lineTo(cx, cy);
-      });
-      ctx.stroke();
-      ctx.restore();
-    };
-
-    // Draw Prospect B (Amber)
-    drawTraj(trajB, '#f59e0b', 'rgba(245, 158, 11, 0.4)');
-    // Draw Prospect A (Cyan)
-    drawTraj(trajA, '#06b6d4', 'rgba(6, 182, 212, 0.4)');
-
-    // Draw scrub position ghost runners
-    const findClosestPt = (traj, d) => {
-      if (!traj || traj.length === 0) return null;
-      let closest = traj[0];
-      let minDiff = Math.abs((closest.distance ?? 0) - d);
-      for (const pt of traj) {
-        const diff = Math.abs((pt.distance ?? 0) - d);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closest = pt;
-        }
-      }
-      return closest;
-    };
-
-    const curA = findClosestPt(trajA, this.scrubDistance);
-    const curB = findClosestPt(trajB, this.scrubDistance);
-
-    if (curB) {
-      const bx = toX(curB.x ?? curB[0] ?? 0);
-      const by = toY(curB.y ?? curB[1] ?? 0);
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.arc(bx, by, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-
-    if (curA) {
-      const ax = toX(curA.x ?? curA[0] ?? 0);
-      const ay = toY(curA.y ?? curA[1] ?? 0);
-      ctx.fillStyle = '#06b6d4';
-      ctx.beginPath();
-      ctx.arc(ax, ay, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-  }
-}
-
 // Controller Initialization
 export async function initCompareApp() {
-  // Initialize Canvases
+  const se = state.spatialExplorer;
+
+  // Initialize Canvases with synchronized scrub callbacks
   if (DOM.spatialStripCanvas) {
-    state.spatialExplorer.stripCanvas = new SpatialStripCanvas(DOM.spatialStripCanvas);
+    se.stripCanvas = new SpatialStripCanvas(DOM.spatialStripCanvas, {
+      onScrub: (d) => {
+        if (se.overlayCanvas) se.overlayCanvas.setScrubDistance(d);
+        updateSpatialScrubUI(d);
+      }
+    });
   }
   if (DOM.spatialOverlayCanvas) {
-    state.spatialExplorer.overlayCanvas = new SpatialOverlayCanvas(DOM.spatialOverlayCanvas);
+    se.overlayCanvas = new SpatialOverlayCanvas(DOM.spatialOverlayCanvas, {
+      onScrub: (d) => {
+        if (se.stripCanvas) se.stripCanvas.setScrubDistance(d);
+        updateSpatialScrubUI(d);
+      }
+    });
   }
 
   // Bind Event Listeners
@@ -657,6 +490,13 @@ async function runSpatialComparison() {
       return;
     }
 
+    if (!comparison.player_a_name && se.playerA) {
+      comparison.player_a_name = `${se.playerA.display_name} (${se.playerA.position || 'ATH'})`;
+    }
+    if (!comparison.player_b_name && se.playerB) {
+      comparison.player_b_name = `${se.playerB.display_name} (${se.playerB.position || 'ATH'})`;
+    }
+
     se.comparisonData = comparison;
 
     if (se.stripCanvas) se.stripCanvas.setData(comparison);
@@ -816,8 +656,8 @@ function renderSpatialSectorsTable(sectors) {
       <td class="font-mono text-cyan">${Number(s.time_a).toFixed(3)}s</td>
       <td class="font-mono text-amber">${Number(s.time_b).toFixed(3)}s</td>
       <td class="font-mono">${dtText}</td>
-      <td class="font-mono">${Number(s.avg_speed_a || 0).toFixed(2)} yd/s</td>
-      <td class="font-mono">${Number(s.avg_speed_b || 0).toFixed(2)} yd/s</td>
+      <td class="font-mono">${Number(s.speed_a_avg ?? s.avg_speed_a ?? 0).toFixed(2)} yd/s</td>
+      <td class="font-mono">${Number(s.speed_b_avg ?? s.avg_speed_b ?? 0).toFixed(2)} yd/s</td>
       <td><span class="badge ${badgeClass}">${winner === 'A' ? 'Prospect A' : winner === 'B' ? 'Prospect B' : 'TIE'}</span></td>
     </tr>`;
   }).join('');
