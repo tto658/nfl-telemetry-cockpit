@@ -1230,10 +1230,10 @@ function updateVehicleDynamicsTelemetry(frame) {
     DOM.vdStatusBadge.className = 'vd-status-badge';
     if (isSnap) {
       DOM.vdStatusBadge.classList.add('status-snap-oversteer');
-      DOM.vdStatusText.textContent = '⚡ SNAP OVERSTEER (EGYENSÚLYVESZTÉS)';
+      DOM.vdStatusText.textContent = '⚡ SHARP CUT REDIRECT (ERŐS IRÁNYVÁLTÁS)';
     } else if (dynState === 'ON_RAILS' || absBeta <= 10) {
       DOM.vdStatusBadge.classList.add('status-on-rails');
-      DOM.vdStatusText.textContent = 'ON RAILS (SÍNEN FUT)';
+      DOM.vdStatusText.textContent = 'INLINE SPRINT (STABIL FUTÁS)';
     } else if (dynState === 'CONTROLLED_DRIFT' || absBeta <= 45) {
       DOM.vdStatusBadge.classList.add('status-controlled');
       DOM.vdStatusText.textContent = 'KONTROLLÁLT EGYENSÚLY';

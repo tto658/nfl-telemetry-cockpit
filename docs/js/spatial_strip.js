@@ -661,7 +661,7 @@ export class SpatialStripCanvas {
     ctx.font = `600 10px ${THEME.fontSans}`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText('MINI-SECTORS', plotLeft - 8, miniSector.top + miniSector.height / 2);
+    ctx.fillText('5-YD SPLITS', plotLeft - 8, miniSector.top + miniSector.height / 2);
 
     ctx.restore();
   }
@@ -972,7 +972,7 @@ export class SpatialStripCanvas {
         ctx.stroke();
 
         // Apex badge tag
-        const tagText = `Apex ${label}${idx + 1}: v_apex: ${vApex.toFixed(1)} yd/s | Exit: ${exitSign}${exitTraction.toFixed(1)} yd/s²`;
+        const tagText = `Cut ${label}${idx + 1}: Min ${vApex.toFixed(1)} yd/s | Exit ${exitSign}${exitTraction.toFixed(1)} yd/s²`;
         ctx.font = `600 9px ${THEME.fontMono}`;
         const tagW = ctx.measureText(tagText).width + 12;
         const tagH = 17;
@@ -1169,7 +1169,7 @@ export class SpatialStripCanvas {
     ctx.fillStyle = THEME.textPrimary;
     ctx.font = `700 11px ${THEME.fontSans}`;
     ctx.textAlign = 'left';
-    ctx.fillText('SIDESLIP ANGLE β & INSTABILITY (deg)', plotLeft + 10, lane3.top + 14);
+    ctx.fillText('BODY LEAN vs PATH ANGLE β (deg)', plotLeft + 10, lane3.top + 14);
 
     ctx.restore();
   }
@@ -1604,7 +1604,7 @@ export class SpatialStripCanvas {
     const rawOlB = Number(this.data.overlap_index_b || 0);
     const olA = (rawOlA > 1 ? rawOlA : rawOlA * 100).toFixed(0);
     const olB = (rawOlB > 1 ? rawOlB : rawOlB * 100).toFixed(0);
-    ctx.fillText(`Trail-Braking Overlap: A ${olA}% vs B ${olB}%`, hudX + 10, hudY + 64);
+    ctx.fillText(`Decel-Cut Sync: A ${olA}% vs B ${olB}%`, hudX + 10, hudY + 64);
 
     // Apex Speed & Exit Traction or Status Alert
     const nearApex = (this.data.apexes_a || []).concat(this.data.apexes_b || []).find(ap => Math.abs((ap.distance ?? 0) - d) <= 1.5);
@@ -1614,17 +1614,17 @@ export class SpatialStripCanvas {
       const signExit = exitTrac >= 0 ? '+' : '';
       ctx.fillStyle = '#38bdf8';
       ctx.textAlign = 'left';
-      ctx.fillText(`Apex: v_apex: ${vApex.toFixed(1)} yd/s | Exit: ${signExit}${exitTrac.toFixed(1)} yd/s²`, hudX + 10, hudY + 80);
+      ctx.fillText(`Min Cut Speed: ${vApex.toFixed(1)} yd/s | Burst Exit: ${signExit}${exitTrac.toFixed(1)} yd/s²`, hudX + 10, hudY + 80);
     } else {
       const hasSnap = ptA?.snap_oversteer || ptB?.snap_oversteer || Math.abs(ptA?.beta_slip || 0) >= 18 || Math.abs(ptB?.beta_slip || 0) >= 18;
       ctx.font = `600 9px ${THEME.fontSans}`;
       ctx.textAlign = 'left';
       if (hasSnap) {
         ctx.fillStyle = THEME.warningRed;
-        ctx.fillText('⚡ SNAP DRIFT / BALANCE INSTABILITY', hudX + 10, hudY + 80);
+        ctx.fillText('⚡ SHARP CUT REDIRECT / HIGH LATERAL LOAD', hudX + 10, hudY + 80);
       } else {
         ctx.fillStyle = THEME.leadA;
-        ctx.fillText('✓ CONTROLLED KINEMATIC TRACTION', hudX + 10, hudY + 80);
+        ctx.fillText('✓ CONTROLLED FOOTWORK & TRACTION', hudX + 10, hudY + 80);
       }
     }
 
@@ -1634,7 +1634,7 @@ export class SpatialStripCanvas {
       ctx.fillStyle = THEME.textSecondary;
       ctx.font = `500 9px ${THEME.fontMono}`;
       ctx.textAlign = 'left';
-      ctx.fillText(`Sector: ${formatDeltaTime(activeSec.delta_time)}`, hudX + 10, hudY + 98);
+      ctx.fillText(`5-Yd Split: ${formatDeltaTime(activeSec.delta_time)}`, hudX + 10, hudY + 98);
     }
 
     ctx.restore();
@@ -2163,7 +2163,7 @@ export class SpatialOverlayCanvas {
         const vApex = ap.v_apex ?? ap.apex_speed ?? ap.speed ?? pt.s ?? 0;
         const exitTrac = ap.exit_traction != null ? ap.exit_traction : 0;
         const exitSign = exitTrac >= 0 ? '+' : '';
-        const txt = `Apex ${label}${idx + 1}: ${vApex.toFixed(1)} yd/s | Exit: ${exitSign}${exitTrac.toFixed(1)} yd/s²`;
+        const txt = `Cut ${label}${idx + 1}: Min ${vApex.toFixed(1)} yd/s | Exit ${exitSign}${exitTrac.toFixed(1)} yd/s²`;
 
         ctx.font = `600 9px ${THEME.fontMono}`;
         const w = ctx.measureText(txt).width + 8;

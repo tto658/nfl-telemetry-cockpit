@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NFL Next Gen Stats — Combine &amp; Game Tracking Dashboard</title>
-  <link rel="stylesheet" href="./css/styles.css?v=4">
+  <link rel="stylesheet" href="./css/styles.css?v=5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -37,7 +37,7 @@
           <span>🏈</span> Prospect Explorer
         </a>
         <a href="compare.html" class="nav-pill" title="Head-to-Head Spatial Comparison Lab">
-          <span>🏎️</span> Spatial Comparison
+          <span>⚡</span> Head-to-Head Comparison
         </a>
       </nav>
     </div>
@@ -327,15 +327,15 @@
               <span id="drillGCombMax" class="summary-val text-amber">-- g</span>
             </div>
             <div class="summary-metric" data-group="stability">
-              <span class="summary-label">Overlap (Trail-Brake)</span>
+              <span class="summary-label">Decel-Cut Sync</span>
               <span id="drillOverlapIndex" class="summary-val text-cyan">-- %</span>
             </div>
             <div class="summary-metric" data-group="cornering">
-              <span class="summary-label">Apex Speed (v<sub>apex</sub>)</span>
+              <span class="summary-label">Min Speed in Cut</span>
               <span id="drillApexSpeed" class="summary-val text-emerald">-- yd/s</span>
             </div>
             <div class="summary-metric" data-group="cornering">
-              <span class="summary-label">Corner Exit Traction</span>
+              <span class="summary-label">Burst Out of Cut</span>
               <span id="drillExitTraction" class="summary-val text-violet">-- yd/s²</span>
             </div>
           </div>
@@ -392,9 +392,9 @@
                   <line x1="12" y1="2" x2="12" y2="22"/>
                   <line x1="2" y1="12" x2="22" y2="12"/>
                 </svg>
-                <span>F1 FRICTION CIRCLE (G-G DIAGRAM) &amp; KDE TOPOGRAPHY</span>
+                <span>ATHLETE FORCE ENVELOPE (G-G) &amp; KDE TOPOGRAPHY</span>
               </div>
-              <span class="gg-panel-subtitle">Kamm&#39;s Envelope &bull; 2D Kernel Density Estimation &bull; Longitudinal (a<sub>t</sub>) vs Lateral (a<sub>lat</sub>)</span>
+              <span class="gg-panel-subtitle">Peak Acceleration Envelope &bull; 2D Kernel Density Estimation &bull; Forward/Braking (a<sub>t</sub>) vs Lateral Cut (a<sub>lat</sub>)</span>
             </div>
             <div class="gg-panel-controls">
               <div class="gg-pill-group" id="combineGGScopeGroup">
@@ -430,11 +430,11 @@
                 <span class="gg-stat-value text-amber" id="combineGGGComb">-- g</span>
               </div>
               <div class="gg-stat-item">
-                <span class="gg-stat-label">Trail-Braking Overlap</span>
+                <span class="gg-stat-label">Decel-Cut Sync</span>
                 <span class="gg-stat-value text-cyan" id="combineGGOverlap">-- %</span>
               </div>
               <div class="gg-stat-item">
-                <span class="gg-stat-label">Apex Speed (v<sub>apex</sub>)</span>
+                <span class="gg-stat-label">Min Speed in Cut</span>
                 <span class="gg-stat-value text-emerald" id="combineGGApex">-- yd/s</span>
               </div>
             </div>
@@ -635,35 +635,35 @@
                   <line x1="12" y1="2" x2="12" y2="22"/>
                   <line x1="2" y1="12" x2="22" y2="12"/>
                 </svg>
-                <span>VEHICLE DYNAMICS &amp; BIOMECHANICS</span>
-                <span class="vd-subtitle">Sideslip Angle (&beta;), Yaw Rate (&beta;&#775;) &amp; Jerk (j) Instability Analysis</span>
+                <span>PLAYER BIOMECHANICS &amp; CUT STABILITY</span>
+                <span class="vd-subtitle">Body Lean Angle (&beta;), Turn Rate (&beta;&#775;) &amp; Acceleration Jerk (j)</span>
               </div>
               <div id="vdStatusBadge" class="vd-status-badge status-on-rails">
                 <span class="status-indicator-dot"></span>
-                <span id="vdStatusText">ON RAILS</span>
+                <span id="vdStatusText">INLINE SPRINT</span>
               </div>
             </div>
 
             <div class="vd-cockpit-layout">
             <div class="vd-metrics-grid">
               <div class="vd-metric-box">
-                <span class="vd-metric-label">Sideslip Angle (&beta;)</span>
+                <span class="vd-metric-label">Body Lean Angle (&beta;)</span>
                 <span class="vd-metric-value font-mono" id="vdBetaVal">0.0&deg;</span>
                 <span class="vd-metric-desc" id="vdBetaInterpretation">Tiszta el&otilde;rehalad&aacute;s (&le;10&deg;)</span>
               </div>
               <div class="vd-metric-box">
-                <span class="vd-metric-label">Sideslip Rate (&beta;&#775;)</span>
+                <span class="vd-metric-label">Turn Rate (&beta;&#775;)</span>
                 <span class="vd-metric-value font-mono" id="vdBetaRateVal">0.0&deg;/s</span>
                 <span class="vd-metric-desc">d&beta;/dt (Sz&ouml;gv&aacute;ltoz&aacute;s sebess&eacute;ge)</span>
               </div>
               <div class="vd-metric-box">
-                <span class="vd-metric-label">Kinematic Jerk (j)</span>
+                <span class="vd-metric-label">Acceleration Jerk (j)</span>
                 <span class="vd-metric-value font-mono" id="vdJerkVal">0.0 yd/s&sup3;</span>
                 <span class="vd-metric-desc">da/dt (R&aacute;ndul&aacute;s / T&uuml;ske)</span>
               </div>
               <div class="vd-metric-box vd-incidents-box">
                 <div class="vd-incidents-header">
-                  <span class="vd-metric-label">Snap Oversteer Incidents</span>
+                  <span class="vd-metric-label">Sharp Cut Redirects</span>
                   <span class="vd-incident-count font-mono" id="vdSnapCount">0</span>
                 </div>
                 <div class="vd-snap-pills" id="vdSnapPills">
@@ -671,33 +671,33 @@
                 </div>
               </div>
               <div class="vd-metric-box">
-                <span class="vd-metric-label">Combined G-Force (G<sub>comb</sub>)</span>
+                <span class="vd-metric-label">Total Force Load (G<sub>comb</sub>)</span>
                 <span class="vd-metric-value font-mono text-amber" id="vdGCombVal">0.00 g</span>
                 <span class="vd-metric-desc" id="vdGCombDesc">&radic;(a<sub>t</sub>&sup2; + a<sub>lat</sub>&sup2;) teljes er&otilde;kifejt&eacute;s</span>
               </div>
               <div class="vd-metric-box">
-                <span class="vd-metric-label">Trail-Braking / Overlap</span>
+                <span class="vd-metric-label">Decel-Cut Sync</span>
                 <span class="vd-metric-value font-mono text-cyan" id="vdOverlapVal">0.0%</span>
                 <span class="vd-metric-desc">|a| &gt; P<sub>70</sub> &eacute;s |a<sub>lat</sub>| &gt; P<sub>70</sub> &aacute;tfed&eacute;s</span>
               </div>
               <div class="vd-metric-box">
-                <span class="vd-metric-label">Key Apex Speed (v<sub>apex</sub>)</span>
+                <span class="vd-metric-label">Min Speed in Cut</span>
                 <span class="vd-metric-value font-mono text-emerald" id="vdApexVal">-- yd/s</span>
-                <span class="vd-metric-desc">Sebess&eacute;g a &kappa;<sub>max</sub> kanyarcs&uacute;csponton</span>
+                <span class="vd-metric-desc">Sebess&eacute;g az ir&aacute;nyv&aacute;lt&aacute;s (&kappa;<sub>max</sub>) pontj&aacute;n</span>
               </div>
               <div class="vd-metric-box">
-                <span class="vd-metric-label">Corner Exit Traction</span>
+                <span class="vd-metric-label">Burst Out of Cut</span>
                 <span class="vd-metric-value font-mono text-violet" id="vdExitTractionVal">-- yd/s&sup2;</span>
-                <span class="vd-metric-desc">&Aacute;tlagos gyorsul&aacute;s az apex ut&aacute;ni 0.5s-ben</span>
+                <span class="vd-metric-desc">&Aacute;tlagos gyorsul&aacute;s a kigyors&iacute;t&aacute;s els&otilde; 0.5s-ben</span>
               </div>
             </div>
 
-            <!-- Live In-Game G-G Friction Circle Canvas -->
+            <!-- Live In-Game Athlete Force Envelope Canvas -->
             <div class="gg-diagram-panel gg-game-panel" id="gameGGPanel">
               <div class="gg-panel-header compact">
                 <div>
-                  <span class="gg-panel-title">G-G FRICTION CIRCLE (KDE)</span>
-                  <span class="gg-panel-subtitle">Kamm Friction Limit &amp; Impulse Coupling</span>
+                  <span class="gg-panel-title">ATHLETE FORCE ENVELOPE (KDE)</span>
+                  <span class="gg-panel-subtitle">Forward/Braking vs Lateral Cut Density</span>
                 </div>
                 <div class="gg-panel-controls compact">
                   <div class="gg-pill-group" id="gameGGScopeGroup">
@@ -851,9 +851,9 @@
   </div>
 
   <!-- Scripts (ES6 Module Entrypoints) -->
-  <script type="module" src="./js/gg_diagram.js?v=4"></script>
-  <script type="module" src="./js/game_field.js?v=4"></script>
-  <script type="module" src="./js/spatial_strip.js?v=4"></script>
-  <script type="module" src="./js/app.js?v=4"></script>
+  <script type="module" src="./js/gg_diagram.js?v=5"></script>
+  <script type="module" src="./js/game_field.js?v=5"></script>
+  <script type="module" src="./js/spatial_strip.js?v=5"></script>
+  <script type="module" src="./js/app.js?v=5"></script>
 </body>
 </html>

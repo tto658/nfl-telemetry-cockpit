@@ -219,7 +219,7 @@ export class GGDiagramCanvas {
       showScatter: options.showScatter !== false,
       showTrail: options.showTrail !== false,
       showLegend: options.showLegend !== false,
-      title: options.title || 'F1 G-G FRICTION CIRCLE (KAMM)',
+      title: options.title || 'ATHLETE FORCE ENVELOPE (G-G)',
       ...options
     };
 
@@ -1177,21 +1177,21 @@ export class GGDiagramCanvas {
     // Quadrant Corner Badges
     ctx.font = `700 8px ${THEME.fontMono}`;
 
-    // Corner Exit tags (top corners)
+    // Burst Exit tags (top corners)
     ctx.fillStyle = THEME.cornerExitText;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.fillText('CORNER EXIT', cx + maxRadius * 0.90, cy - maxRadius * 0.90);
+    ctx.fillText('BURST EXIT', cx + maxRadius * 0.90, cy - maxRadius * 0.90);
     ctx.textAlign = 'left';
-    ctx.fillText('CORNER EXIT', cx - maxRadius * 0.90, cy - maxRadius * 0.90);
+    ctx.fillText('BURST EXIT', cx - maxRadius * 0.90, cy - maxRadius * 0.90);
 
-    // Trail-Brake tags (bottom corners)
+    // Cut Plant tags (bottom corners)
     ctx.fillStyle = THEME.trailBrakeText;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
-    ctx.fillText('TRAIL-BRAKE', cx + maxRadius * 0.90, cy + maxRadius * 0.90);
+    ctx.fillText('CUT PLANT', cx + maxRadius * 0.90, cy + maxRadius * 0.90);
     ctx.textAlign = 'left';
-    ctx.fillText('TRAIL-BRAKE', cx - maxRadius * 0.90, cy + maxRadius * 0.90);
+    ctx.fillText('CUT PLANT', cx - maxRadius * 0.90, cy + maxRadius * 0.90);
 
     ctx.restore();
   }

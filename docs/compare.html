@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spatial Telemetry Benchmark &amp; Overlay — NFL Tracking Lab</title>
-  <link rel="stylesheet" href="./css/styles.css?v=4">
+  <title>Head-to-Head Movement Comparison — NFL Tracking Lab</title>
+  <link rel="stylesheet" href="./css/styles.css?v=5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -36,8 +36,8 @@
         <a href="index.html" class="nav-pill" title="Single-prospect deep dive">
           <span>🏈</span> Prospect Explorer
         </a>
-        <a href="compare.html" class="nav-pill active" title="Head-to-Head Spatial Comparison Lab">
-          <span>🏎️</span> Spatial Comparison
+        <a href="compare.html" class="nav-pill active" title="Head-to-Head Movement Comparison Lab">
+          <span>&#9889;</span> Head-to-Head Comparison
         </a>
       </nav>
     </div>
@@ -58,8 +58,8 @@
     <section class="section-card spatial-controls-section">
       <div class="section-header">
         <div>
-          <h2 class="section-title">Spatial Telemetry Benchmark &amp; Overlay</h2>
-          <span class="section-subtitle">Formula 1 Curvilinear Distance-Based Resampling [d(t) = &Sigma; dis] &bull; Phase-True Kinematic Overlay</span>
+          <h2 class="section-title">Head-to-Head Distance Comparison</h2>
+          <span class="section-subtitle">Yard-by-Yard Movement Alignment [0 yd to finish] &bull; Same-Position &amp; Same-Drill Benchmarking</span>
         </div>
         <div class="spatial-mode-toggle">
           <button id="spatialModeCombine" class="mode-pill active" type="button">Combine Drill</button>
@@ -67,11 +67,20 @@
         </div>
       </div>
 
+      <!-- Same-Position Filter Bar -->
+      <div class="spatial-position-bar">
+        <div class="spatial-position-group">
+          <label for="spatialPositionSelect">Position Group:</label>
+          <select id="spatialPositionSelect" class="toolbar-select"></select>
+        </div>
+        <span id="spatialPositionLockBadge" class="position-lock-badge">Same-Position Lock Active</span>
+      </div>
+
       <div class="spatial-selector-grid">
-        <!-- Prospect A (Benchmark Focus) -->
+        <!-- Prospect A (Primary) -->
         <div class="selector-card selector-a">
           <div class="selector-header">
-            <span class="player-badge badge-a">Prospect A (Primary)</span>
+            <span class="player-badge badge-a">Player A (Primary)</span>
             <span id="spatialNameA" class="selected-name text-cyan">--</span>
           </div>
           <div class="selector-controls">
@@ -80,7 +89,7 @@
               <select id="spatialPlayerA" class="spatial-select"></select>
             </div>
             <div id="spatialCombineControlsA" class="control-row">
-              <label for="spatialDrillA">Drill A:</label>
+              <label for="spatialDrillA">Combine Drill / Rep A:</label>
               <select id="spatialDrillA" class="spatial-select"></select>
             </div>
             <div id="spatialSnapControlsA" class="control-row" style="display: none;">
@@ -95,7 +104,7 @@
 
         <!-- VS Divider & Swap -->
         <div class="selector-middle">
-          <button id="spatialSwapBtn" class="swap-btn" type="button" title="Swap Prospect A and B">
+          <button id="spatialSwapBtn" class="swap-btn" type="button" title="Swap Player A and B">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/>
             </svg>
@@ -103,22 +112,23 @@
           <div class="vs-badge">VS</div>
         </div>
 
-        <!-- Prospect B (Comparison / Position Benchmark) -->
+        <!-- Prospect B (Comparison / Position Average) -->
         <div class="selector-card selector-b">
           <div class="selector-header">
-            <span class="player-badge badge-b">Prospect B (Comparison)</span>
+            <span class="player-badge badge-b">Player B (Comparison)</span>
             <span id="spatialNameB" class="selected-name text-amber">--</span>
           </div>
           <div class="selector-controls">
             <div class="control-row">
-              <label for="spatialPlayerB">Player B:</label>
+              <label for="spatialPlayerB">Player B (Same Position):</label>
               <select id="spatialPlayerB" class="spatial-select">
-                <option value="POS_AVG">Position Benchmark Average</option>
+                <option value="POS_AVG">Position Average (Same Pos)</option>
               </select>
             </div>
             <div id="spatialCombineControlsB" class="control-row">
-              <label for="spatialDrillB">Drill B:</label>
+              <label for="spatialDrillB">Matching Rep B (Same Drill):</label>
               <select id="spatialDrillB" class="spatial-select"></select>
+              <span id="spatialDrillSyncNote" class="drill-sync-note">Automatically locked to Player A&rsquo;s drill type</span>
             </div>
             <div id="spatialSnapControlsB" class="control-row" style="display: none;">
               <label for="spatialGameB">Game / Play B:</label>
@@ -134,9 +144,9 @@
       <!-- Toolbar: Resolution & Action -->
       <div class="spatial-toolbar">
         <div class="toolbar-left">
-          <label for="spatialStepSelect" class="spatial-toolbar-label">Spatial Grid Step (&Delta;d):</label>
+          <label for="spatialStepSelect" class="spatial-toolbar-label">Distance Step (&Delta;d):</label>
           <select id="spatialStepSelect" class="toolbar-select">
-            <option value="0.5" selected>0.50 yd (F1 Standard)</option>
+            <option value="0.5" selected>0.50 yd (Standard)</option>
             <option value="0.25">0.25 yd (High Precision)</option>
             <option value="1.0">1.00 yd (Coarse Fast)</option>
           </select>
@@ -146,7 +156,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            Run Spatial Comparison
+            Run Comparison
           </button>
         </div>
       </div>
@@ -155,39 +165,39 @@
     <!-- Section: Telemetry Overview Summary Cards -->
     <section id="spatialSummarySection" class="section-card spatial-summary-grid" style="display: none;">
       <div class="stat-pill summary-stat">
-        <span class="stat-label">Evaluated Distance</span>
+        <span class="stat-label">Compared Distance</span>
         <span id="spatialCommonDist" class="stat-val font-mono">0.0 yd</span>
       </div>
       <div class="stat-pill summary-stat">
-        <span class="stat-label">Finish Line Delta (&Delta;t)</span>
+        <span class="stat-label">Total Time Gap (&Delta;t)</span>
         <span id="spatialFinishDelta" class="stat-val font-mono">0.000 s</span>
       </div>
       <div class="stat-pill summary-stat">
-        <span class="stat-label">Overall Pace Leader</span>
+        <span class="stat-label">Faster Overall</span>
         <span id="spatialLeaderBadge" class="badge">--</span>
       </div>
-      <div class="stat-pill summary-stat">
-        <span class="stat-label">Mini-Sector Score</span>
+      <div class="stat-pill summary-stat" title="Number of 5-yard distance intervals (0-5, 5-10 yd, ...) covered faster by Player A vs Player B">
+        <span class="stat-label">5-Yd Split Wins</span>
         <span id="spatialSectorScore" class="stat-val font-mono">0 - 0</span>
       </div>
       <div class="stat-pill summary-stat">
-        <span class="stat-label">V-Max Differential (&Delta;s)</span>
+        <span class="stat-label">Top Speed Diff (&Delta;s)</span>
         <span id="spatialVMaxDelta" class="stat-val font-mono">0.0 yd/s</span>
       </div>
       <div class="stat-pill summary-stat">
-        <span class="stat-label">Combined G-Force (Max)</span>
+        <span class="stat-label">Peak Combined Force</span>
         <span id="spatialGComb" class="stat-val font-mono text-amber">0.00g vs 0.00g</span>
       </div>
-      <div class="stat-pill summary-stat">
-        <span class="stat-label">Trail-Braking Overlap</span>
+      <div class="stat-pill summary-stat" title="Percentage of high-intensity movement where deceleration and lateral cutting happen smoothly together">
+        <span class="stat-label">Decel-Cut Sync</span>
         <span id="spatialOverlapIndex" class="stat-val font-mono text-cyan">0% vs 0%</span>
       </div>
-      <div class="stat-pill summary-stat">
-        <span class="stat-label">Key Apex Speed (v<sub>apex</sub>)</span>
+      <div class="stat-pill summary-stat" title="Minimum speed retained through the sharpest change-of-direction cut">
+        <span class="stat-label">Min Speed in Cut</span>
         <span id="spatialApexSpeed" class="stat-val font-mono text-emerald">-- yd/s</span>
       </div>
-      <div class="stat-pill summary-stat">
-        <span class="stat-label">Corner Exit Traction</span>
+      <div class="stat-pill summary-stat" title="Average acceleration over the 0.5s burst immediately exiting a sharp cut">
+        <span class="stat-label">Burst Out of Cut</span>
         <span id="spatialExitTraction" class="stat-val font-mono text-violet">-- yd/s&sup2;</span>
       </div>
     </section>
@@ -196,13 +206,13 @@
     <section class="section-card spatial-overlay-section">
       <div class="section-header">
         <div>
-          <h3 class="section-title">2D Curvilinear Trajectory Overlay</h3>
-          <span class="section-subtitle">Aligned Spatial Paths (Prospect A in Cyan &bull; Prospect B in Amber) &bull; Apex &amp; Cut Markers</span>
+          <h3 class="section-title">2D Route &amp; Movement Path Overlay</h3>
+          <span class="section-subtitle">Aligned Paths from Start (Player A in Cyan &bull; Player B in Amber) &bull; Change-of-Direction Cut Markers</span>
         </div>
         <div class="scrub-controls">
           <button id="spatialScrubReset" class="ctrl-btn-sm" type="button" title="Reset to start">|&lt;</button>
           <button id="spatialScrubPlay" class="ctrl-btn-sm" type="button" title="Play / Pause Distance Sweep">&gt;</button>
-          <span class="scrub-label">Scrub d: <strong id="spatialCurrentD" class="font-mono text-cyan">0.0 yd</strong></span>
+          <span class="scrub-label">Distance d: <strong id="spatialCurrentD" class="font-mono text-cyan">0.0 yd</strong></span>
           <input type="range" id="spatialDistanceSlider" min="0" max="40" step="0.5" value="0" class="distance-slider">
         </div>
       </div>
@@ -212,22 +222,22 @@
       </div>
     </section>
 
-    <!-- Section: F1-Style 3-Lane Distance Telemetry Strip -->
+    <!-- Section: 3-Lane Yard-by-Yard Movement Comparison -->
     <section class="section-card spatial-strip-section">
       <div class="section-header">
         <div>
-          <h3 class="section-title">F1 Curvilinear Distance Telemetry Strip</h3>
-          <span class="section-subtitle">Stacked 3-Lane Synchronized Kinematics Strip along Arc Length Axis [d &isin; 0..d_max]</span>
+          <h3 class="section-title">Yard-by-Yard Speed &amp; Time-Lead Comparison</h3>
+          <span class="section-subtitle">Time Lead (&Delta;t), Running Speed, and Cut Body Control at Every Yard Covered [0 yd &rarr; finish]</span>
         </div>
         <div class="strip-header-actions">
-          <div class="strip-mode-toggle" id="btnStripLane3Toggle" role="group" aria-label="Lane 3 Telemetry Mode">
-            <span class="toggle-label">Lane 3:</span>
-            <button id="btnLane3Sideslip" class="btn-lane-toggle active" type="button" title="View Sideslip Angle">Sideslip &beta;(d)</button>
-            <button id="btnLane3GForce" class="btn-lane-toggle" type="button" title="View Combined G-Force">Combined G(d)</button>
+          <div class="strip-mode-toggle" id="btnStripLane3Toggle" role="group" aria-label="Lane 3 Metric">
+            <span class="toggle-label">Bottom Chart:</span>
+            <button id="btnLane3Sideslip" class="btn-lane-toggle active" type="button" title="Body orientation angle vs travel path">Body Lean &beta;(d)</button>
+            <button id="btnLane3GForce" class="btn-lane-toggle" type="button" title="Total combined acceleration / cut G-force">Combined G(d)</button>
           </div>
           <div class="strip-legend">
-            <span class="legend-chip chip-a"><span class="chip-color color-a"></span> Prospect A</span>
-            <span class="legend-chip chip-b"><span class="chip-color color-b"></span> Prospect B</span>
+            <span class="legend-chip chip-a"><span class="chip-color color-a"></span> Player A</span>
+            <span class="legend-chip chip-b"><span class="chip-color color-b"></span> Player B</span>
             <span class="legend-chip chip-gain"><span class="chip-color color-gain"></span> A Ahead (&Delta;t &lt; 0)</span>
             <span class="legend-chip chip-loss"><span class="chip-color color-loss"></span> B Ahead (&Delta;t &gt; 0)</span>
           </div>
@@ -240,57 +250,61 @@
       </div>
     </section>
 
-    <!-- Section: Sector Breakdown & Milestone Comparison Table -->
+    <!-- Section: Split Interval Breakdown & Milestone Comparison Tables -->
     <div class="spatial-tables-grid">
       <!-- Milestone Split Board -->
       <section class="section-card">
         <div class="section-header">
-          <h3 class="section-title">Drill Milestone Split Times</h3>
-          <span class="section-subtitle">Geometric Apexes, Turns &amp; Split Gates</span>
+          <div>
+            <h3 class="section-title">Checkpoint Split Times</h3>
+            <span class="section-subtitle">Cumulative time and speed at key yardage checkpoints (10 yd, 20 yd, turns, finish)</span>
+          </div>
         </div>
         <div class="table-container">
           <table class="data-table" id="spatialMilestonesTable">
             <thead>
               <tr>
-                <th>Milestone Gate</th>
+                <th>Checkpoint</th>
                 <th>Distance (d)</th>
                 <th>Time A</th>
                 <th>Time B</th>
                 <th>&Delta;Time</th>
                 <th>Speed A</th>
                 <th>Speed B</th>
-                <th>Split Leader</th>
+                <th>Faster at Gate</th>
               </tr>
             </thead>
             <tbody id="spatialMilestonesBody">
-              <tr><td colspan="8" class="text-muted text-center">Run spatial comparison to inspect milestones.</td></tr>
+              <tr><td colspan="8" class="text-muted text-center">Run comparison to inspect checkpoint splits.</td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      <!-- Mini-Sector Timing Board -->
+      <!-- 5-Yard Split Intervals Board -->
       <section class="section-card">
         <div class="section-header">
-          <h3 class="section-title">F1 5-Yard Mini-Sector Leaderboard</h3>
-          <span class="section-subtitle">Telescoping Differential Sum [&Sigma; &Delta;T_k = &Delta;t_finish]</span>
+          <div>
+            <h3 class="section-title">5-Yard Split Intervals Breakdown</h3>
+            <span class="section-subtitle">How long each player took to cover each 5-yard stretch (0&ndash;5 yd, 5&ndash;10 yd, &hellip;) &mdash; individual split gaps add up to the total finish time gap</span>
+          </div>
         </div>
         <div class="table-container">
           <table class="data-table" id="spatialSectorsTable">
             <thead>
               <tr>
-                <th>Sector</th>
-                <th>Arc Span</th>
+                <th>Split Segment</th>
+                <th>Stretch</th>
                 <th>Time A</th>
                 <th>Time B</th>
-                <th>&Delta;T (Sector)</th>
+                <th>Split Gap (&Delta;t)</th>
                 <th>Avg Speed A</th>
                 <th>Avg Speed B</th>
-                <th>Sector Winner</th>
+                <th>Faster in Split</th>
               </tr>
             </thead>
             <tbody id="spatialSectorsBody">
-              <tr><td colspan="8" class="text-muted text-center">Run spatial comparison to inspect mini-sectors.</td></tr>
+              <tr><td colspan="8" class="text-muted text-center">Run comparison to inspect 5-yard split intervals.</td></tr>
             </tbody>
           </table>
         </div>
@@ -313,8 +327,8 @@
   </div>
 
   <!-- Scripts (ES6 Module Entrypoints) -->
-  <script type="module" src="./js/spatial_strip.js?v=4"></script>
-  <script type="module" src="./js/spatial_engine.js?v=4"></script>
-  <script type="module" src="./js/compare_app.js?v=4"></script>
+  <script type="module" src="./js/spatial_strip.js?v=5"></script>
+  <script type="module" src="./js/spatial_engine.js?v=5"></script>
+  <script type="module" src="./js/compare_app.js?v=5"></script>
 </body>
 </html>

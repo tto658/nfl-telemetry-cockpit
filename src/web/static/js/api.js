@@ -525,7 +525,7 @@ export const api = {
    * Universal compareSpatialCombine with live backend API + fallback to in-browser client resampling.
    */
   async compareSpatialCombine(playerA, drillA, playerB, drillB, step = 0.5, milestones = null) {
-    if (!isStaticMode()) {
+    if (!isStaticMode() && playerB !== 'POS_AVG') {
       const url = new URL(`${window.location.origin}${API_BASE}/spatial/compare/combine`);
       url.searchParams.set('player_a', playerA);
       url.searchParams.set('drill_a', drillA);
@@ -540,16 +540,19 @@ export const api = {
       } catch (_) {}
     }
 
-    // In static mode or if live API fails: Compute in-browser using spatial_engine!
+    // In static mode, POS_AVG mode, or if live API fails: Compute in-browser using spatial_engine!
     try {
       const payloadA = await this.fetchCombineDrill(playerA, drillA);
       let payloadB = null;
 
       if (playerB === 'POS_AVG') {
-        const drillName = drillA.includes('THREE') ? 'THREE_CONE' : (drillA.includes('SHUTTLE') ? 'SHUTTLE' : 'FORTY_YARD_DASH');
+        const refName = (typeof drillB === 'string' && drillB && drillB !== 'POS_AVG')
+          ? drillB
+          : (payloadA?.drill_name || drillA);
+        const drillName = refName.includes('THREE') ? 'THREE_CONE' : (refName.includes('SHUTTLE') ? 'SHUTTLE' : 'FORTY_YARD_DASH');
         const summaryA = await this.fetchPlayerSummary(playerA);
         const pos = summaryA?.nfl_position || summaryA?.position || 'WR';
-        const avgRes = await this.fetchSpatialPositionAvg(pos, drillName, step);
+        const avgRes = await this.fetchSpatialPositionAvg(pos, drillName, 0.5);
         if (avgRes && avgRes.trajectory) {
           payloadB = avgRes.trajectory;
         }
@@ -558,7 +561,8 @@ export const api = {
       }
 
       if (payloadA && payloadB) {
-        return resampleAndCompareTrajectories(payloadA, payloadB, step, drillA);
+        const drillKey = payloadA.drill_name || drillA;
+        return resampleAndCompareTrajectories(payloadA, payloadB, step, drillKey);
       }
     } catch (err) {
       console.warn('[API] Client-side spatial combine comparison failed:', err);

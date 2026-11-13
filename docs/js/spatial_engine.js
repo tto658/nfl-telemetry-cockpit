@@ -95,7 +95,9 @@ export function resampleTrajectory(trajData, gridDistances) {
   }
 
   // Extract raw series
-  const times = frames.map((f, idx) => (f.time_elapsed !== undefined ? f.time_elapsed : idx * 0.1));
+  const times = frames.map((f, idx) => (
+    f.time_elapsed !== undefined ? f.time_elapsed : (f.time !== undefined ? f.time : idx * 0.1)
+  ));
   const speeds = frames.map(f => f.s ?? 0);
   const accels = frames.map(f => f.a ?? 0);
   const xs = frames.map(f => f.x ?? 0);

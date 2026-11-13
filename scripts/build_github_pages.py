@@ -7,6 +7,7 @@ decoded directly in-browser via hyparquet.
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import shutil
@@ -104,8 +105,36 @@ def export_slim_parquet(src_path: Path, dst_path: Path, target_cols: list[str]) 
     return True
 
 
+def copy_static_assets() -> None:
+    """Copy frontend HTML, CSS, JavaScript modules, and vendor bundles into docs/."""
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    (DOCS_DIR / "css").mkdir(parents=True, exist_ok=True)
+    (DOCS_DIR / "js").mkdir(parents=True, exist_ok=True)
+
+    print("-> Copying frontend HTML, CSS, JavaScript modules, and vendor bundles...")
+    for html_file in STATIC_SRC.glob("*.html"):
+        shutil.copy2(html_file, DOCS_DIR / html_file.name)
+    shutil.copy2(STATIC_SRC / "css" / "styles.css", DOCS_DIR / "css" / "styles.css")
+    shutil.copytree(STATIC_SRC / "js", DOCS_DIR / "js", dirs_exist_ok=True)
+    (DOCS_DIR / ".nojekyll").write_text("", encoding="utf-8")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Build GitHub Pages bundle in docs/.")
+    parser.add_argument(
+        "--assets-only",
+        action="store_true",
+        help="Sync HTML/CSS/JS static assets to docs/ without regenerating data/ or parquets.",
+    )
+    args = parser.parse_args()
+
     t_start = time.time()
+    if args.assets_only:
+        print("=== SYNCING STATIC FRONTEND ASSETS TO docs/ (--assets-only) ===")
+        copy_static_assets()
+        print(f"-> Static asset sync complete in {time.time() - t_start:.2f}s")
+        return
+
     print("=== BUILDING GITHUB PAGES DEPLOYMENT BUNDLE (docs/) ===")
 
     # 1. Clean and initialize docs/ folder structure
@@ -125,15 +154,8 @@ def main() -> None:
     (data_dir / "spatial" / "compare_combine").mkdir(parents=True, exist_ok=True)
     (data_dir / "spatial" / "compare_snap").mkdir(parents=True, exist_ok=True)
 
-    # 2. Copy static web assets (including js/vendor/*.mjs)
-    print("-> Copying frontend HTML, CSS, JavaScript modules, and vendor bundles...")
-    for html_file in STATIC_SRC.glob("*.html"):
-        shutil.copy2(html_file, DOCS_DIR / html_file.name)
-    shutil.copy2(STATIC_SRC / "css" / "styles.css", DOCS_DIR / "css" / "styles.css")
-    shutil.copytree(STATIC_SRC / "js", DOCS_DIR / "js", dirs_exist_ok=True)
-
-    # 3. Create .nojekyll marker to bypass Jekyll processing on GitHub Pages
-    (DOCS_DIR / ".nojekyll").write_text("", encoding="utf-8")
+    # 2. Copy static web assets (including js/vendor/*.mjs) and .nojekyll
+    copy_static_assets()
     print("-> Created docs/.nojekyll")
 
     # 4. Initialize registry and TestClient
