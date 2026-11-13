@@ -36,12 +36,14 @@ tree.txt
 /artifacts/
 /reports/
 /logs/
-!docs/data/**
+!docs/data/
 *.csv
 *.parquet
 *.duckdb
 *.pkl
 *.joblib
+!docs/data/**
+!docs/data/**/*.parquet
 combine_tracking_by_position/
 tracking_by_position/
 data_parquet/
