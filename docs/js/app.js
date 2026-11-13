@@ -688,9 +688,11 @@ async function loadPlayerGames(nflId) {
   const games = (res && Array.isArray(res.games)) ? res.games : (Array.isArray(res) ? res : []);
   state.gameExplorer.games = games;
 
-  // 13 Zero-snap rookie check
+  // 13 Zero-snap rookie vs unavailable check
   if (games.length === 0) {
-    renderZeroSnapRookieState();
+    const totalSnaps = state.playerSummary?.career?.total_snaps ?? 0;
+    const isUnavailable = Boolean(res?.unavailable) || (!res?.zeroSnap && totalSnaps > 0);
+    renderZeroSnapRookieState({ isUnavailable, totalSnaps });
     return;
   }
 
@@ -705,8 +707,32 @@ async function loadPlayerGames(nflId) {
   await applyGameSeasonFilter();
 }
 
-function renderZeroSnapRookieState() {
-  if (DOM.zeroSnapCard) DOM.zeroSnapCard.style.display = 'flex';
+function renderZeroSnapRookieState({ isUnavailable = false, totalSnaps = 0 } = {}) {
+  if (DOM.zeroSnapCard) {
+    DOM.zeroSnapCard.style.display = 'flex';
+    const titleEl = DOM.zeroSnapCard.querySelector('.zero-snap-title');
+    const descEl = DOM.zeroSnapCard.querySelector('.zero-snap-description');
+    const subtextEl = DOM.zeroSnapCard.querySelector('.zero-snap-subtext');
+    if (isUnavailable) {
+      if (titleEl) titleEl.textContent = 'Game Tracking Telemetry Unavailable';
+      if (descEl) {
+        descEl.textContent = totalSnaps > 0
+          ? `Game tracking telemetry failed to load for this player (${totalSnaps.toLocaleString()} career NFL regular season snaps recorded).`
+          : 'Game tracking telemetry could not be loaded right now.';
+      }
+      if (subtextEl) {
+        subtextEl.textContent = 'Please check your connection or reload the page. Official NFL Scouting Combine measurements and 10 Hz tracked combine drills remain accessible on Tab 1.';
+      }
+    } else {
+      if (titleEl) titleEl.textContent = 'No Game Tracking Telemetry Recorded';
+      if (descEl) {
+        descEl.textContent = 'No game tracking telemetry recorded for this player (0 career NFL regular season snaps).';
+      }
+      if (subtextEl) {
+        subtextEl.textContent = 'This prospect has not logged active regular season playing time in the 2023–2025 Next Gen Stats database. Official NFL Scouting Combine testing measurements, NGS athleticism scores, and 10 Hz tracked combine drills remain fully accessible on Tab 1.';
+      }
+    }
+  }
   if (DOM.gameExplorerContent) DOM.gameExplorerContent.style.display = 'none';
   
   if (state.gameExplorer.playbackEngine) {

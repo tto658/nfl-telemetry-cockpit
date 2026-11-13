@@ -5,12 +5,62 @@
  */
 
 import { resampleAndCompareTrajectories } from './spatial_engine.js';
+import { parquetReadObjects, compressors } from './vendor/hyparquet.bundle.mjs';
+import {
+  buildCombineDrillPayload,
+  buildGamesFromParquet,
+  buildSnapPayload,
+  buildGGCloudPayload
+} from './kinematics_engine.js';
 
 const API_BASE = '/api';
 const STATIC_BASE = './data';
 
-// Cached all players array for client-side filtering on static hosting
+// Cached all players array & global games index for client-side static mode
 let _staticAllPlayersCache = null;
+let _staticGamesMapCache = null;
+const _parquetCache = new Map();
+const MAX_PARQUET_CACHE = 40;
+
+async function _loadGamesMap() {
+  if (_staticGamesMapCache) return _staticGamesMapCache;
+  try {
+    const res = await fetch(`${STATIC_BASE}/games.json`);
+    if (res.ok) {
+      _staticGamesMapCache = await res.json();
+      return _staticGamesMapCache;
+    }
+  } catch (e) {
+    console.warn('[API] Failed to load static games.json:', e);
+  }
+  return {};
+}
+
+async function _loadParquetRows(relPath) {
+  if (_parquetCache.has(relPath)) {
+    const cached = _parquetCache.get(relPath);
+    // Refresh LRU order
+    _parquetCache.delete(relPath);
+    _parquetCache.set(relPath, cached);
+    return cached;
+  }
+
+  try {
+    const res = await fetch(`${STATIC_BASE}/parquet/${relPath}`);
+    if (!res.ok) return null;
+    const ab = await res.arrayBuffer();
+    const rows = await parquetReadObjects({ file: ab, compressors });
+    if (_parquetCache.size >= MAX_PARQUET_CACHE) {
+      const oldestKey = _parquetCache.keys().next().value;
+      _parquetCache.delete(oldestKey);
+    }
+    _parquetCache.set(relPath, rows);
+    return rows;
+  } catch (err) {
+    console.warn(`[API] Failed reading parquet ${relPath}:`, err);
+    return null;
+  }
+}
 
 /**
  * Determine if the application is running in a static hosting environment.
@@ -173,12 +223,28 @@ export const api = {
    */
   async fetchCombineDrill(nflId, eventId) {
     if (!nflId || !eventId) return null;
+
+    if (!isStaticMode()) {
+      try {
+        const res = await fetch(`${API_BASE}/player/${nflId}/combine/${encodeURIComponent(eventId)}`);
+        if (res.ok) return await res.json();
+      } catch (_) {}
+    }
+
+    // Read directly from player's combine_tracking.parquet
+    const rows = await _loadParquetRows(`${nflId}/combine_tracking.parquet`);
+    if (rows && rows.length > 0) {
+      const payload = buildCombineDrillPayload(rows, eventId);
+      if (payload) return payload;
+    }
+
+    // Legacy static JSON fallback if present
     const safeEventId = encodeURIComponent(eventId).replace(/[^a-zA-Z0-9_-]/g, '_');
-    return await fetchWithFallback(
-      `${API_BASE}/player/${nflId}/combine/${encodeURIComponent(eventId)}`,
-      `player/${nflId}/drills/${safeEventId}.json`,
-      `fetchCombineDrill(${nflId}, ${eventId})`
-    );
+    try {
+      const res = await fetch(`${STATIC_BASE}/player/${nflId}/drills/${safeEventId}.json`);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return null;
   },
 
   /**
@@ -196,13 +262,73 @@ export const api = {
   /**
    * GET /api/player/{nfl_id}/gg-kde?scope={scope}
    */
-  async fetchGGKdeCloud(nflId, scope = 'season') {
+  async fetchGGKdeCloud(nflId, scope = 'season', seasonFilter = null, gameIdFilter = null) {
     if (!nflId) return null;
-    return await fetchWithFallback(
-      `${API_BASE}/player/${nflId}/gg-kde?scope=${scope}`,
-      `player/${nflId}/gg_kde/${scope}.json`,
-      `fetchGGKdeCloud(${nflId}, ${scope})`
-    );
+
+    if (!isStaticMode()) {
+      const qp = new URLSearchParams({ scope });
+      if (seasonFilter) qp.set('season', seasonFilter);
+      if (gameIdFilter) qp.set('game_id', gameIdFilter);
+      try {
+        const res = await fetch(`${API_BASE}/player/${nflId}/gg-kde?${qp.toString()}`);
+        if (res.ok) return await res.json();
+      } catch (_) {}
+    }
+
+    // Compute G-G telemetry cloud in-browser from Parquet
+    if (scope === 'combine') {
+      const rows = await _loadParquetRows(`${nflId}/combine_tracking.parquet`);
+      if (!rows || rows.length === 0) {
+        return buildGGCloudPayload(nflId, [], { isCombine: true, scope: 'combine' });
+      }
+      const byEvent = new Map();
+      for (const r of rows) {
+        if (r.entity_type !== 'PLAYER') continue;
+        const eid = r.event_id || 'drill';
+        if (!byEvent.has(eid)) byEvent.set(eid, []);
+        byEvent.get(eid).push(r);
+      }
+      return buildGGCloudPayload(nflId, Array.from(byEvent.values()), { isCombine: true, scope: 'combine' });
+    }
+
+    // Season or game scope: identify available seasons cleanly from games list
+    const gamesRes = await this.fetchGames(nflId);
+    const games = gamesRes?.games || [];
+    const availableSeasons = seasonFilter
+      ? [Number(seasonFilter)]
+      : [...new Set(games.map(g => Number(g.season)).filter(Boolean))].sort();
+
+    if (availableSeasons.length === 0) {
+      // Zero-snap fallback to combine tracking (matches data_loader.py)
+      return this.fetchGGKdeCloud(nflId, 'combine');
+    }
+
+    const partitions = [];
+    for (const yr of availableSeasons) {
+      const rows = await _loadParquetRows(`${nflId}/game_tracking_${yr}.parquet`);
+      if (!rows || rows.length === 0) continue;
+      const byPlay = new Map();
+      for (const r of rows) {
+        if (gameIdFilter && Number(r.game_id) !== Number(gameIdFilter)) continue;
+        const key = `${r.game_id}_${r.play_id}`;
+        if (!byPlay.has(key)) byPlay.set(key, []);
+        byPlay.get(key).push(r);
+      }
+      for (const part of byPlay.values()) {
+        partitions.push(part);
+      }
+    }
+
+    if (partitions.length === 0) {
+      return this.fetchGGKdeCloud(nflId, 'combine');
+    }
+
+    return buildGGCloudPayload(nflId, partitions, {
+      isCombine: false,
+      scope,
+      season: seasonFilter ? Number(seasonFilter) : null,
+      gameId: gameIdFilter ? Number(gameIdFilter) : null
+    });
   },
 
   /**
@@ -215,27 +341,63 @@ export const api = {
     if (playType) query.set('play_type', playType);
     const qs = query.toString() ? `?${query.toString()}` : '';
 
-    const data = await fetchWithFallback(
-      `${API_BASE}/player/${nflId}/games${qs}`,
-      `player/${nflId}/games.json`,
-      `fetchGames(${nflId})`
-    );
+    let allGames = null;
 
-    if (!data || !data.games) return { games: [] };
+    if (!isStaticMode()) {
+      try {
+        const res = await fetch(`${API_BASE}/player/${nflId}/games${qs}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.games)) return data;
+        }
+      } catch (_) {}
+    }
 
-    let filteredGames = data.games;
+    // Check if player is known to have 0 teams/snaps from cached players list
+    const players = await this._filterStaticPlayers();
+    const pMeta = players.find(p => Number(p.nfl_id) === Number(nflId));
+    if (pMeta && (!Array.isArray(pMeta.teams) || pMeta.teams.length === 0)) {
+      return { games: [], zeroSnap: true };
+    }
+
+    // Load from player_play.parquet + games.json
+    const [playRows, gamesMap] = await Promise.all([
+      _loadParquetRows(`${nflId}/player_play.parquet`),
+      _loadGamesMap()
+    ]);
+
+    if (playRows !== null) {
+      allGames = buildGamesFromParquet(playRows, gamesMap, pMeta?.team || pMeta?.teams?.[0] || null);
+    } else {
+      // Legacy fallback if games.json exists
+      try {
+        const res = await fetch(`${STATIC_BASE}/player/${nflId}/games.json`);
+        if (res.ok) {
+          const data = await res.json();
+          allGames = data?.games || [];
+        }
+      } catch (_) {}
+    }
+
+    if (!allGames) {
+      return { games: [], unavailable: true };
+    }
+
+    let filteredGames = allGames;
     if (season) {
       filteredGames = filteredGames.filter(g => String(g.season) === String(season));
     }
     if (playType) {
+      const ptUpper = String(playType).toUpperCase();
       filteredGames = filteredGames.map(g => {
         const plays = (g.plays || []).filter(p => {
-          if (playType === 'RUN') return p.is_run === true;
-          if (playType === 'PASS') return p.is_run === false;
+          if (p.play_type) return String(p.play_type).toUpperCase() === ptUpper;
+          if (ptUpper === 'RUN') return p.is_run === true;
+          if (ptUpper === 'PASS') return p.is_run === false;
           return true;
         });
-        return { ...g, plays, play_count: plays.length };
-      }).filter(g => g.play_count > 0);
+        return { ...g, plays, play_count: plays.length, total_plays: plays.length };
+      }).filter(g => g.plays.length > 0);
     }
     return { games: filteredGames };
   },
@@ -245,17 +407,29 @@ export const api = {
    */
   async fetchPlays(nflId, gameId, params = {}) {
     if (!nflId || !gameId) return [];
-    const query = new URLSearchParams();
-    if (params.lined_up_position) query.set('lined_up_position', params.lined_up_position);
-    if (params.play_type) query.set('play_type', params.play_type);
-    const qs = query.toString() ? `?${query.toString()}` : '';
 
-    const data = await fetchWithFallback(
-      `${API_BASE}/player/${nflId}/plays/${gameId}${qs}`,
-      `player/${nflId}/plays/${gameId}.json`,
-      `fetchPlays(${nflId}, ${gameId})`
-    );
-    return Array.isArray(data) ? data : [];
+    if (!isStaticMode()) {
+      const query = new URLSearchParams();
+      if (params.lined_up_position) query.set('lined_up_position', params.lined_up_position);
+      if (params.play_type) query.set('play_type', params.play_type);
+      const qs = query.toString() ? `?${query.toString()}` : '';
+      try {
+        const res = await fetch(`${API_BASE}/player/${nflId}/plays/${gameId}${qs}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) return data;
+        }
+      } catch (_) {}
+    }
+
+    const gamesRes = await this.fetchGames(nflId, null, params.play_type || null);
+    const game = (gamesRes?.games || []).find(g => Number(g.game_id) === Number(gameId));
+    let plays = game?.plays || [];
+    if (params.lined_up_position) {
+      const posUpper = String(params.lined_up_position).trim().toUpperCase();
+      plays = plays.filter(p => (p.lined_up_position || '').toUpperCase() === posUpper);
+    }
+    return plays;
   },
 
   /**
@@ -263,11 +437,29 @@ export const api = {
    */
   async fetchSnap(nflId, gameId, playId) {
     if (!nflId || !gameId || !playId) return null;
-    return await fetchWithFallback(
-      `${API_BASE}/player/${nflId}/snap/${gameId}/${playId}`,
-      `player/${nflId}/snap/${gameId}_${playId}.json`,
-      `fetchSnap(${nflId}, ${gameId}, ${playId})`
-    );
+
+    if (!isStaticMode()) {
+      try {
+        const res = await fetch(`${API_BASE}/player/${nflId}/snap/${gameId}/${playId}`);
+        if (res.ok) return await res.json();
+      } catch (_) {}
+    }
+
+    const gamesMap = await _loadGamesMap();
+    const gMeta = gamesMap[String(gameId)];
+    const season = gMeta?.season || Number(String(gameId).slice(0, 4));
+
+    const rows = await _loadParquetRows(`${nflId}/game_tracking_${season}.parquet`);
+    if (rows && rows.length > 0) {
+      const payload = buildSnapPayload(rows, gameId, playId);
+      if (payload) return payload;
+    }
+
+    try {
+      const res = await fetch(`${STATIC_BASE}/player/${nflId}/snap/${gameId}_${playId}.json`);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return null;
   },
 
   /**
