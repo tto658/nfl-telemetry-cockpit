@@ -1,0 +1,69 @@
+# Project relative paths configuration for 2027 NFL Big Data Bowl Pipeline
+# Follows Rule 20 of AGENT.md: Use project-relative paths inside Python code.
+
+project_root: "."
+
+raw_parquet:
+  players: "players.parquet"
+  combine_results: "combine_results.parquet"
+  combine_tracking: "combine_tracking.parquet"
+  player_career_successes: "player_career_successes.parquet"
+  player_play: "player_play.parquet"
+  games: "games.parquet"
+  game_tracking_2023: "game_tracking_2023.parquet"
+  game_tracking_2024: "game_tracking_2024.parquet"
+  game_tracking_2025: "game_tracking_2025.parquet"
+
+raw_csv:
+  players: "players.csv"
+  combine_results: "combine_results.csv"
+  combine_tracking: "combine_tracking.csv"
+  player_career_successes: "player_career_successes.csv"
+  player_play: "player_play.csv"
+  games: "games.csv"
+  game_tracking_2023: "game_tracking_2023.csv"
+  game_tracking_2024: "game_tracking_2024.csv"
+  game_tracking_2025: "game_tracking_2025.csv"
+
+interim:
+  dir: "data/interim"
+  db_combine_tracking: "data/interim/db_combine_tracking.parquet"
+  db_player_play_enriched: "data/interim/db_player_play_enriched.parquet"
+  db_combine_drill_episodes: "data/interim/db_combine_drill_episodes.parquet"
+
+processed:
+  dir: "data/processed"
+  db_combine_features: "data/processed/db_combine_features.parquet"
+  db_game_plays_kinematics: "data/processed/db_game_plays_kinematics.parquet"
+  db_player_master_dataset: "data/processed/db_player_master_dataset.parquet"
+
+artifacts:
+  dir: "artifacts"
+  environment_report: "artifacts/environment_report.md"
+  file_manifest: "artifacts/file_manifest.csv"
+  schema_report: "artifacts/schema_report.md"
+  data_dictionary: "artifacts/data_dictionary.csv"
+  assumptions: "artifacts/assumptions.md"
+  schema_snapshot: "artifacts/schema_snapshot.json"
+  conversion_report: "artifacts/conversion_report.md"
+  conversion_manifest: "artifacts/conversion_manifest.json"
+  validation_report: "artifacts/validation_report.md"
+  validation_results: "artifacts/validation_results.json"
+  analysis_contract: "artifacts/analysis_contract.md"
+  eda_report: "artifacts/eda_report.md"
+  split_manifest: "artifacts/split_manifest.csv"
+  leakage_audit: "artifacts/leakage_audit.md"
+  model_selection_report: "artifacts/model_selection_report.md"
+  diagnostics_json: "artifacts/diagnostics.json"
+  diagnostic_interpretation: "artifacts/diagnostic_interpretation.md"
+  robustness_report: "artifacts/robustness_report.md"
+
+reports:
+  dir: "reports"
+  tables_dir: "reports/tables"
+  figures_dir: "reports/figures"
+  descriptive_statistics: "reports/tables/descriptive_statistics.csv"
+  db_mnar_optout_audit: "reports/tables/db_mnar_optout_audit.csv"
+  model_comparison: "reports/tables/model_comparison.csv"
+  db_prospect_scouting_leaderboard: "reports/tables/db_prospect_scouting_leaderboard.csv"
+  final_report: "reports/bdb2027_db_hip_fluidity_report.md"

@@ -1,0 +1,85 @@
+# Schema, composite primary keys, spatial/angular conventions, and right-censoring rules
+# Follows Rules 5, 6, 7, 14 of AGENT.md
+
+composite_primary_keys:
+  players:
+    - "nfl_id"
+  combine_results:
+    - "nfl_id"
+  combine_tracking:
+    - "event_id"
+    - "entity_type"
+    - "time"
+  player_career_successes:
+    - "nfl_id"
+  games:
+    - "game_id"
+  player_play:
+    - "game_id"
+    - "play_id"
+    - "nfl_id"
+  game_tracking_2023:
+    - "game_id"
+    - "play_id"
+    - "nfl_id"
+    - "time"
+  game_tracking_2024:
+    - "game_id"
+    - "play_id"
+    - "nfl_id"
+    - "time"
+  game_tracking_2025:
+    - "game_id"
+    - "play_id"
+    - "nfl_id"
+    - "time"
+
+spatial_and_angular_conventions:
+  angle_convention: "0_deg_north_plus_y_clockwise_90_deg_east_plus_x"
+  field_length_yards: 120.0
+  field_width_yards: 53.3333
+  sampling_interval_sec: 0.1
+  sampling_rate_hz: 10.0
+  standard_gravity_yds_per_sec2: 10.7247
+  curvature_singularity_cutoff_yds_per_sec: 0.2
+  active_motion_cutoff_yds_per_sec: 0.5
+  oversteer_speed_threshold_yds_per_sec: 1.0
+  oversteer_beta_rate_threshold_deg_per_sec: 100.0
+  oversteer_jerk_threshold_yds_per_sec3: 6.0
+
+  velocity_decomposition:
+    vx_formula: "s * sin(dir * pi / 180.0)"
+    vy_formula: "s * cos(dir * pi / 180.0)"
+    empirical_alignment_corr_min: 0.999
+
+  play_direction_standardization:
+    condition: "play_direction == 'left'"
+    target_offensive_direction: "right (+x, 90 degrees)"
+    x_std: "120.0 - x"
+    y_std: "53.3333 - y"
+    dir_std: "(dir + 180.0) % 360.0"
+    o_std: "(o + 180.0) % 360.0"
+    rotational_invariants:
+      - "beta_slip"
+      - "beta_rate"
+      - "omega_t"
+      - "kappa_t"
+
+schema_quirks_and_aliases:
+  player_play_typo_column: "visitor_team_win_probility_added"
+  player_play_corrected_alias: "visitor_team_win_probability_added"
+  midfield_yardline_null_rule: "yardline_side is null if and only if yardline_number == 50"
+  unblocked_pressure_attribution: "Populated on defensive pass-rush rows (EDGE, INTERIOR_LINE, CB, SLOT_CB, HIGH_SAFETY, MLB, OLB), never on offensive line rows."
+
+filtering_and_right_censoring_rules:
+  primary_on_field_season_type: "REG"
+  sensitivity_season_types:
+    - "PRE"
+    - "POST"
+  primary_penalty_filter: "play_nullified_by_penalty == 'N'"
+  is_penalty_nullified_formula: "play_nullified_by_penalty == 'Y'"
+  is_rookie_season_formula: "season == draft_year"
+  right_censoring_normalizations:
+    def_snaps_per_active_game: "career_defensive_snaps / max(1, career_games_active)"
+    start_rate: "career_games_started / max(1, career_games_active)"
+    rookie_reg_season_filter: "season == draft_year and season_type == 'REG' and play_nullified_by_penalty == 'N'"

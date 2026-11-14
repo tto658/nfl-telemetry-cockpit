@@ -1,0 +1,85 @@
+# Model configuration, cross-validation, diagnostics, and strict feature firewall
+# Follows Rules 10, 11, 12, 17 of AGENT.md
+
+random_seed: 20261102
+
+cross_validation:
+  strategy: "GroupKFold"
+  n_splits: 5
+  group_column: "nfl_id"
+  shuffle: false
+  cohort_global_n: 510
+  cohort_db_n: 122
+
+diagnostics:
+  vif_warning: 5.0
+  vif_critical: 10.0
+  condition_number_warning: 30.0
+  cooks_d_multiplier: 4.0
+  jarque_bera_alpha: 0.05
+  breusch_pagan_alpha: 0.05
+  bootstrap_iterations: 1000
+  confidence_level: 0.95
+
+feature_blocks:
+  stopwatch_features:
+    - "forty"
+    - "ten_yd_split"
+    - "vertical"
+    - "broad_jump"
+    - "combine_height"
+    - "combine_weight"
+    - "arm_length"
+
+  agility_timer_targets:
+    - "three_cone"
+    - "short_shuttle"
+    - "ngs_athleticism_score"
+
+  drill_kinematic_features:
+    - "omega_break"
+    - "tau_trans"
+    - "a_exit"
+    - "asr_w_box"
+    - "overlap_70"
+    - "g_comb_95"
+    - "v_bp"
+    - "a_plant"
+    - "j_plant"
+    - "kappa_break"
+    - "v_max_gauntlet"
+    - "kappa_rms"
+    - "hfbi_raw"
+    - "hfbi_z"
+
+  hfbi_component_features:
+    - "omega_break"
+    - "tau_trans"
+    - "a_exit"
+    - "asr_w_box"
+    - "overlap_70"
+    - "g_comb_95"
+
+  # Strictly quarantined from kinematic predictor matrices (X_kinematic and X_stopwatch)
+  # in Model Families 1 and 2 to prevent pre-draft composite/scouting proxy leakage.
+  quarantined_pre_draft_proxies:
+    - "draft_overall_pick"
+    - "draft_round"
+    - "draft_pick_within_round"
+    - "ngs_college_production_score"
+    - "ngs_final_score"
+
+  in_game_execution_mediators:
+    - "reg_speed_p95"
+    - "reg_hip_flip_rate_p95"
+    - "reg_a_exit"
+    - "reg_snap_oversteer_rate"
+    - "game_v_close"
+    - "hip_flip_rate_p95"
+    - "cushion"
+    - "backpedal_dwell_frac"
+
+model_hyperparameters:
+  ridge_alphas: [0.1, 1.0, 5.0, 10.0, 25.0, 50.0, 100.0]
+  elastic_net_l1_ratios: [0.1, 0.5, 0.9]
+  huber_epsilon: 1.35
