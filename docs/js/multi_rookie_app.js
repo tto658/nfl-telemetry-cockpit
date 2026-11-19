@@ -1015,8 +1015,8 @@ async function init() {
       };
     });
 
-    DOM.statTotalCount.textContent = state.allPlays.length.toLocaleString();
-    DOM.statMaxRookies.textContent = String(maxRookies);
+    if (DOM.statTotalCount) DOM.statTotalCount.textContent = state.allPlays.length.toLocaleString();
+    if (DOM.statMaxRookies) DOM.statMaxRookies.textContent = String(maxRookies);
 
     populateFilterOptions();
     applyFiltersAndSort();
