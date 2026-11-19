@@ -3,18 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NFL Multi-Rookie Play Lab — 2+ Cohort Prospects Telemetry</title>
+  <title>NFL Next Gen Stats — Combine &amp; Game Tracking Dashboard</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>">
-  <link rel="stylesheet" href="./css/styles.css?v=6">
-  <link rel="stylesheet" href="./css/multi_rookie.css?v=1">
+  <link rel="stylesheet" href="./css/styles.css?v=5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body class="dark-theme mr-body">
+<body class="dark-theme">
 
-  <!-- GLOBAL HEADER -->
-  <header class="global-header mr-header">
+  <!-- ==================================================================== -->
+  <!-- GLOBAL HEADER BAR                                                    -->
+  <!-- ==================================================================== -->
+  <header class="global-header">
     <div class="header-brand-nav">
       <a href="index.html" class="header-brand">
         <div class="brand-logo">
@@ -26,283 +27,837 @@
           </svg>
         </div>
         <div class="brand-text">
-          <span class="brand-title">NFL MULTI-ROOKIE LAB</span>
-          <span class="brand-subtitle">Plays with &ge;2 Cohort Prospects &bull; 10 Hz Tracking</span>
+          <span class="brand-title">NFL TRACKING LAB</span>
+          <span class="brand-subtitle">Kinematics &amp; Telemetry</span>
         </div>
       </a>
+
+      <!-- Page Navigation Pills -->
+      <nav class="header-nav-pills">
+        <a href="index.html" class="nav-pill active" title="Single-prospect deep dive">
+          <span>🏈</span> Prospect Explorer
+        </a>
+        <a href="compare.html" class="nav-pill" title="Head-to-Head Spatial Comparison Lab">
+          <span>⚡</span> Head-to-Head Comparison
+        </a>
+        <a href="multi_rookie.html" class="nav-pill" title="Plays with 2+ Cohort Rookies">
+          <span>👥</span> Multi-Rookie Plays
+        </a>
+      </nav>
     </div>
 
-    <div class="mr-header-stats">
-      <div class="mr-stat-pill">
-        <span class="mr-stat-label">Matching Plays</span>
-        <span id="statFilteredCount" class="mr-stat-val text-cyan font-mono">--</span>
-      </div>
-      <div class="mr-stat-pill">
-        <span class="mr-stat-label">Total 2+ Rookie Plays</span>
-        <span id="statTotalCount" class="mr-stat-val font-mono">--</span>
-      </div>
-      <div class="mr-stat-pill">
-        <span class="mr-stat-label">Max Rookies/Play</span>
-        <span id="statMaxRookies" class="mr-stat-val text-amber font-mono">--</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- LOADING BANNER -->
-  <div id="loadingBanner" class="mr-loading-banner">
-    <div class="mr-spinner"></div>
-    <span id="loadingStatusText">Loading 85,109 multi-rookie plays from ZSTD Parquet...</span>
-  </div>
-
-  <!-- MAIN WORKSPACE -->
-  <main class="mr-main">
-
-    <!-- FILTER TOOLBAR -->
-    <section class="section-card mr-filter-card">
-      <div class="mr-filter-grid">
-        <div class="mr-filter-item">
-          <label for="filterMinRookies">Min Rookies</label>
-          <select id="filterMinRookies" class="filter-select">
-            <option value="2" selected>2+ Rookies</option>
-            <option value="3">3+ Rookies</option>
-            <option value="4">4+ Rookies</option>
-            <option value="5">5+ Rookies</option>
-            <option value="6">6+ Rookies</option>
-            <option value="7">7+ Rookies</option>
-            <option value="8">8+ Rookies</option>
-          </select>
-        </div>
-
-        <div class="mr-filter-item">
-          <label for="filterSeason">Season</label>
-          <select id="filterSeason" class="filter-select">
-            <option value="">All (2023–2025)</option>
+    <!-- Right Controls: Filters & Player Selector -->
+    <div class="header-controls">
+      <!-- Faceted Filter Toolbar -->
+      <div class="header-filters">
+        <div class="filter-group">
+          <label for="draftYearFilter">Yr:</label>
+          <select id="draftYearFilter" class="filter-select">
+            <option value="">All Years</option>
             <option value="2023">2023</option>
             <option value="2024">2024</option>
             <option value="2025">2025</option>
           </select>
         </div>
 
-        <div class="mr-filter-item">
-          <label for="filterPlayType">Play Type</label>
-          <select id="filterPlayType" class="filter-select">
-            <option value="">All Types</option>
-            <option value="PASS">PASS</option>
-            <option value="RUN">RUN</option>
-          </select>
-        </div>
-
-        <div class="mr-filter-item">
-          <label for="filterMatchup">Matchup</label>
-          <select id="filterMatchup" class="filter-select">
-            <option value="">All Matchups</option>
-            <option value="h2h">Head-to-Head (Both Teams)</option>
-            <option value="same">Teammates Only (1 Team)</option>
-          </select>
-        </div>
-
-        <div class="mr-filter-item">
-          <label for="filterTeam">Team</label>
-          <select id="filterTeam" class="filter-select">
-            <option value="">All Teams</option>
-          </select>
-        </div>
-
-        <div class="mr-filter-item">
-          <label for="filterPosition">Position</label>
-          <select id="filterPosition" class="filter-select">
+        <div class="filter-group">
+          <label for="positionFilter">Pos:</label>
+          <select id="positionFilter" class="filter-select">
             <option value="">All Positions</option>
           </select>
         </div>
 
-        <div class="mr-filter-item mr-filter-wide">
-          <label for="filterRookie">Rookie Involved</label>
-          <select id="filterRookie" class="filter-select">
-            <option value="">All 510 Rookies</option>
+        <div class="filter-group">
+          <label for="teamFilter">Team:</label>
+          <select id="teamFilter" class="filter-select">
+            <option value="">All Teams</option>
           </select>
         </div>
 
-        <div class="mr-filter-item mr-filter-wide">
-          <label for="filterGame">Game</label>
-          <select id="filterGame" class="filter-select">
-            <option value="">All Games</option>
-          </select>
-        </div>
-
-        <div class="mr-filter-item mr-filter-wide">
-          <label for="filterSearch">Search Description / Name</label>
-          <input id="filterSearch" type="text" class="mr-input" placeholder="e.g. touchdown, Stroud, sack..." autocomplete="off">
-        </div>
-
-        <div class="mr-filter-actions">
-          <button id="btnResetFilters" class="btn btn-sm mr-btn-reset" type="button">Reset</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- PLAYS TABLE SECTION -->
-    <section class="section-card mr-table-section">
-      <div class="mr-table-header">
-        <div>
-          <h2 class="section-title">Multi-Rookie Plays</h2>
-          <span id="tableSubtitle" class="section-subtitle">Click any play to load 10 Hz multi-player tracking telemetry</span>
-        </div>
-        <div class="mr-pagination">
-          <label for="pageSizeSelect" class="mr-page-label">Rows:</label>
-          <select id="pageSizeSelect" class="filter-select mr-page-select">
-            <option value="25" selected>25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-          <button id="btnPrevPage" class="btn btn-sm mr-page-btn" type="button">&lsaquo; Prev</button>
-          <span id="pageInfoText" class="mr-page-info font-mono">1 / 1</span>
-          <button id="btnNextPage" class="btn btn-sm mr-page-btn" type="button">Next &rsaquo;</button>
-        </div>
-      </div>
-
-      <div class="plays-table-container mr-plays-scroll">
-        <table class="plays-table" id="mrPlaysTable">
-          <thead>
-            <tr>
-              <th class="sortable" data-sort="season">Season / Wk</th>
-              <th>Matchup</th>
-              <th>Qtr / Clock</th>
-              <th>Down &amp; Dist</th>
-              <th>Type</th>
-              <th class="sortable" data-sort="n_rookies"># Rookies</th>
-              <th>Rookies on Play</th>
-              <th class="sortable" data-sort="expected_points_added">EPA</th>
-              <th class="sortable" data-sort="yards_gained">Yds</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody id="mrPlaysBody">
-            <tr>
-              <td colspan="10" class="table-empty">Loading multi-rookie plays...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- SELECTED PLAY STAGE -->
-    <section id="playStageSection" class="section-card mr-stage-section">
-      <div class="mr-stage-top">
-        <div class="mr-play-badges">
-          <span id="stageMatchupBadge" class="badge badge-position">-- @ --</span>
-          <span id="stageSituationBadge" class="badge badge-pick font-mono">Q-- • --:-- • --</span>
-          <span id="stageTypeBadge" class="badge badge-play-type">--</span>
-          <span id="stageFormationBadge" class="mr-meta-chip" style="display:none;">--</span>
-          <span id="stageCoverageBadge" class="mr-meta-chip" style="display:none;">--</span>
-        </div>
-        <div class="mr-stage-kpis">
-          <div class="epa-pill" id="stageEpaPill">
-            <span class="epa-label">EPA</span>
-            <span id="stageEpaVal" class="epa-value font-mono">--</span>
-          </div>
-          <div class="epa-pill">
-            <span class="epa-label">YDS</span>
-            <span id="stageYdsVal" class="epa-value font-mono">--</span>
-          </div>
-          <div class="epa-pill">
-            <span class="epa-label">ROOKIES</span>
-            <span id="stageRookieCountVal" class="epa-value font-mono text-cyan">--</span>
+        <div class="filter-group search-group">
+          <div class="search-input-wrapper">
+            <input type="text" id="searchInput" placeholder="Search..." autocomplete="off">
+            <button id="searchClearBtn" class="search-clear-btn" title="Clear search" style="display: none;">&times;</button>
           </div>
         </div>
       </div>
 
-      <p id="stageDescription" class="mr-play-desc">Select a play from the table above to inspect multi-rookie trajectories.</p>
+      <!-- Authoritative Player Selector -->
+      <div class="header-player-select">
+        <label for="playerSelect">
+          <span id="playerCountBadge" class="count-badge" title="Total Available Prospects">510</span>
+        </label>
+        <select id="playerSelect" class="player-select-main">
+          <!-- Formatted: Name [Pos • Team] (Year • Pick) -->
+        </select>
+      </div>
+    </div>
+  </header>
 
-      <!-- PLAYBACK & VIEW CONTROLS -->
-      <div class="mr-playback-bar">
-        <div class="mr-playback-left">
-          <button id="btnPlayPause" class="btn btn-primary btn-sm" type="button" disabled>&#9654; Play</button>
-          <button id="btnPlayReset" class="btn btn-sm mr-btn-reset" type="button" disabled>&#8634; Reset</button>
-          <button id="btnStepBack" class="btn btn-sm mr-btn-reset" type="button" disabled>&minus;0.1s</button>
-          <button id="btnStepFwd" class="btn btn-sm mr-btn-reset" type="button" disabled>+0.1s</button>
-          <select id="playbackSpeedSelect" class="filter-select mr-speed-select">
-            <option value="0.5">0.5x</option>
-            <option value="1" selected>1.0x</option>
-            <option value="2">2.0x</option>
-          </select>
+  <!-- ==================================================================== -->
+  <!-- PLAYER BIO BANNER (Structured 2-Row Design - Zero Superposition)     -->
+  <!-- ==================================================================== -->
+  <section id="playerBioBanner" class="bio-banner">
+    <!-- Row 1: Identity, Physicals & Biomechanical Archetype -->
+    <div class="bio-row-primary">
+      <div class="bio-left">
+        <div class="bio-name-row">
+          <h1 id="bioName" class="bio-name">--</h1>
+          <span id="bioPosition" class="badge badge-position">--</span>
+          <span id="bioDraftPick" class="badge badge-pick">--</span>
         </div>
-
-        <div class="mr-scrubber-wrap">
-          <span id="playbackTimeLabel" class="font-mono mr-time-label">0.0s / 0.0s</span>
-          <input id="playbackScrubber" type="range" min="0" max="0" value="0" step="1" class="mr-scrubber" disabled>
-          <span id="playbackEventBadge" class="mr-event-badge" style="display:none;">--</span>
-        </div>
-
-        <div class="mr-view-toggle">
-          <button id="btnZoomAuto" class="gg-pill active" type="button">Auto-Zoom</button>
-          <button id="btnZoomFull" class="gg-pill" type="button">Full Field</button>
+        <div class="bio-meta-row">
+          <span class="bio-meta-item">
+            <span class="meta-label">College:</span>
+            <strong id="bioCollege">--</strong>
+          </span>
+          <span class="bio-meta-divider">&bull;</span>
+          <span class="bio-meta-item">
+            <span class="meta-label">Height:</span>
+            <strong id="bioHeight">--</strong>
+          </span>
+          <span class="bio-meta-divider">&bull;</span>
+          <span class="bio-meta-item">
+            <span class="meta-label">Weight:</span>
+            <strong id="bioWeight">-- lbs</strong>
+          </span>
+          <span class="bio-meta-divider">&bull;</span>
+          <span class="bio-meta-item">
+            <span class="meta-label">Teams:</span>
+            <strong id="bioTeams">--</strong>
+          </span>
         </div>
       </div>
 
-      <!-- FIELD + TIMESERIES GRID -->
-      <div class="mr-visual-grid">
-        <div class="canvas-panel">
-          <div class="canvas-panel-header">
-            <span class="canvas-title">2D Multi-Rookie Field Tracking (10 Hz)</span>
-            <div class="canvas-legend">
-              <span class="legend-item"><span class="legend-dot" style="background:#06b6d4;"></span> Offense Rookie</span>
-              <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Defense Rookie</span>
-              <span class="legend-item"><span class="legend-arrow arrow-dir">&rarr;</span> Velocity &amp; Heading</span>
+      <!-- Prominent Scout Verdict Badge (Never Overlapped) -->
+      <div class="bio-archetype-container">
+        <span id="bioArchetypeBadge" class="badge badge-archetype" title="Automated Biomechanical Scout Verdict">--</span>
+      </div>
+    </div>
+
+    <!-- Row 2: Career Snapshot Stats & Accolades -->
+    <div class="bio-row-secondary">
+      <div class="career-stats-card">
+        <div class="stat-pill">
+          <span class="stat-label">Total Snaps</span>
+          <span id="bioTotalSnaps" class="stat-val">0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">Off / Def / ST</span>
+          <span id="bioSnapBreakdown" class="stat-val font-mono">0 / 0 / 0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">Games Active</span>
+          <span id="bioGamesActive" class="stat-val">0</span>
+        </div>
+        <div id="bioAccoladesContainer" class="accolades-pill" style="display: none;">
+          <span class="stat-label">Accolades</span>
+          <span id="bioAccolades" class="stat-val text-amber">--</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================== -->
+  <!-- TAB NAVIGATION BAR                                                   -->
+  <!-- ==================================================================== -->
+  <nav class="tab-navbar">
+    <button id="tabBtnCombine" class="tab-btn active" data-tab="tab-combine">
+      <span class="tab-number">1</span>
+      Draft &amp; Combine Explorer
+    </button>
+    <button id="tabBtnGame" class="tab-btn" data-tab="tab-game">
+      <span class="tab-number">2</span>
+      Game &amp; Play Explorer
+    </button>
+    <div class="nav-bridge-bar" id="navBridgeBar">
+      <span class="bridge-status-dot"></span>
+      <span class="bridge-status-label">Active:</span>
+      <span id="navBridgeProspectName" class="bridge-prospect-name">--</span>
+      <span id="navBridgeProspectMeta" class="badge badge-sm badge-nav-bridge">--</span>
+      <button id="btnToggleBioStrip" class="btn-bio-pill-toggle" title="Toggle Bio Banner Ribbon">
+        <span id="bioToggleIcon">&minus;</span> Bio
+      </button>
+    </div>
+  </nav>
+
+  <!-- ==================================================================== -->
+  <!-- MAIN CONTENT CONTAINER                                               -->
+  <!-- ==================================================================== -->
+  <main class="main-content">
+
+    <!-- ================================================================== -->
+    <!-- TAB 1: DRAFT & COMBINE OVERVIEW                                    -->
+    <!-- ================================================================== -->
+    <div id="tab-combine" class="tab-pane active" data-tab="tabCombine">
+
+      <!-- Physical Testing & NGS Scores Section -->
+      <section class="section-card combine-metrics-section">
+        <div class="section-header">
+          <h2 class="section-title">Physical Testing &amp; Combine Metrics</h2>
+          <span class="section-subtitle">Official NFL Scouting Combine measurements and NGS performance scores</span>
+        </div>
+
+        <div class="metrics-grid">
+          <!-- 40-Yard Dash -->
+          <div class="metric-card" id="cardForty">
+            <span class="metric-title">40-Yard Dash</span>
+            <div class="metric-value-row">
+              <span class="metric-val" id="metricForty">--</span>
+              <span class="metric-unit">sec</span>
+            </div>
+            <div id="badgeForty" class="opt-out-container opt-out">
+              <span class="badge-opt-out">Opt-Out / MNAR</span>
             </div>
           </div>
-          <div class="canvas-wrapper mr-field-wrap">
-            <canvas id="multiFieldCanvas" width="900" height="440"></canvas>
-            <div id="fieldLoadingOverlay" class="mr-field-overlay" style="display:none;">
-              <div class="mr-spinner"></div>
-              <span id="fieldLoadingText">Loading player telemetry...</span>
+
+          <!-- Vertical Jump -->
+          <div class="metric-card" id="cardVertical">
+            <span class="metric-title">Vertical Jump</span>
+            <div class="metric-value-row">
+              <span class="metric-val" id="metricVertical">--</span>
+              <span class="metric-unit">in</span>
+            </div>
+            <div id="badgeVertical" class="opt-out-container opt-out"></div>
+          </div>
+
+          <!-- Broad Jump -->
+          <div class="metric-card" id="cardBroad">
+            <span class="metric-title">Broad Jump</span>
+            <div class="metric-value-row">
+              <span class="metric-val" id="metricBroad">--</span>
+              <span class="metric-unit">in</span>
+            </div>
+            <div id="badgeBroad" class="opt-out-container opt-out"></div>
+          </div>
+
+          <!-- 3-Cone Drill -->
+          <div class="metric-card" id="cardThreeCone">
+            <span class="metric-title">3-Cone Drill</span>
+            <div class="metric-value-row">
+              <span class="metric-val" id="metricThreeCone">--</span>
+              <span class="metric-unit">sec</span>
+            </div>
+            <div id="badgeThreeCone" class="opt-out-container opt-out"></div>
+          </div>
+
+          <!-- 20-Yard Shuttle -->
+          <div class="metric-card" id="cardShuttle">
+            <span class="metric-title">20-Yard Shuttle</span>
+            <div class="metric-value-row">
+              <span class="metric-val" id="metricShuttle">--</span>
+              <span class="metric-unit">sec</span>
+            </div>
+            <div id="badgeShuttle" class="opt-out-container opt-out"></div>
+          </div>
+
+          <!-- Bench Press -->
+          <div class="metric-card" id="cardBench">
+            <span class="metric-title">Bench Press</span>
+            <div class="metric-value-row">
+              <span class="metric-val" id="metricBench">--</span>
+              <span class="metric-unit">reps</span>
+            </div>
+            <div id="badgeBench" class="opt-out-container opt-out"></div>
+          </div>
+
+          <!-- NGS Athleticism Score -->
+          <div class="metric-card card-ngs" id="cardAthleticism">
+            <span class="metric-title">NGS Athleticism</span>
+            <div class="metric-value-row">
+              <span class="metric-val text-cyan" id="metricAthleticism">--</span>
+              <span class="metric-unit">/ 100</span>
+            </div>
+            <div id="badgeAthleticism" class="opt-out-container"></div>
+          </div>
+
+          <!-- NGS Production Score -->
+          <div class="metric-card card-ngs" id="cardProduction">
+            <span class="metric-title">NGS Production</span>
+            <div class="metric-value-row">
+              <span class="metric-val text-amber" id="metricProduction">--</span>
+              <span class="metric-unit">/ 100</span>
+            </div>
+            <div id="badgeProduction" class="opt-out-container"></div>
+          </div>
+
+          <!-- NGS Final Score -->
+          <div class="metric-card card-ngs" id="cardFinalScore">
+            <span class="metric-title">NGS Final Grade</span>
+            <div class="metric-value-row">
+              <span class="metric-val text-emerald" id="metricFinalScore">--</span>
+              <span class="metric-unit">/ 100</span>
+            </div>
+            <div id="badgeFinalScore" class="opt-out-container"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tracked Combine Drills Visualization Section -->
+      <section class="section-card combine-drills-section">
+        <div class="drill-header-row">
+          <div class="drill-select-container">
+            <label for="drillSelect" class="drill-label">Tracked Combine Drill Attempt</label>
+            <div class="drill-select-action-group">
+              <select id="drillSelect" class="drill-select">
+                <option value="">Loading drill attempts...</option>
+              </select>
+              <a id="btnSendDrillToSpatial" href="compare.html" class="btn btn-sm btn-spatial-bridge" title="Benchmark current drill in Spatial Comparison Lab">
+                ⚡ Benchmark Drill in Spatial Lab
+              </a>
+            </div>
+          </div>
+
+          <!-- Drill Kinematics Summary Card -->
+          <div class="drill-metrics-summary" id="drillMetricsCard">
+            <div class="summary-metric" data-group="kinematics">
+              <span class="summary-label">Duration</span>
+              <span id="drillDuration" class="summary-val">-- s</span>
+            </div>
+            <div class="summary-metric" data-group="kinematics">
+              <span class="summary-label">Max Speed (s<sub>max</sub>)</span>
+              <span id="drillSMax" class="summary-val text-cyan">-- yd/s</span>
+            </div>
+            <div class="summary-metric" data-group="kinematics">
+              <span class="summary-label">Max Accel (a<sub>max</sub>)</span>
+              <span id="drillAMax" class="summary-val text-violet">-- yd/s²</span>
+            </div>
+            <div class="summary-metric" data-group="cornering">
+              <span class="summary-label">Curvature (κ<sub>90</sub>)</span>
+              <span id="drillKappa90" class="summary-val text-emerald">-- 1/yd</span>
+            </div>
+            <div class="summary-metric" data-group="stability">
+              <span class="summary-label">Max G-Force (G<sub>comb</sub>)</span>
+              <span id="drillGCombMax" class="summary-val text-amber">-- g</span>
+            </div>
+            <div class="summary-metric" data-group="stability">
+              <span class="summary-label">Decel-Cut Sync</span>
+              <span id="drillOverlapIndex" class="summary-val text-cyan">-- %</span>
+            </div>
+            <div class="summary-metric" data-group="cornering">
+              <span class="summary-label">Min Speed in Cut</span>
+              <span id="drillApexSpeed" class="summary-val text-emerald">-- yd/s</span>
+            </div>
+            <div class="summary-metric" data-group="cornering">
+              <span class="summary-label">Burst Out of Cut</span>
+              <span id="drillExitTraction" class="summary-val text-violet">-- yd/s²</span>
             </div>
           </div>
         </div>
 
-        <div class="canvas-panel">
-          <div class="canvas-panel-header">
-            <span class="canvas-title">Synchronized Rookie Speed (yd/s)</span>
-            <span class="section-subtitle">Click a rookie row below to highlight</span>
+        <!-- Dual Canvas Grid Area -->
+        <div class="canvases-grid">
+          <!-- Left: 2D Field Trajectory Canvas -->
+          <div class="canvas-panel">
+            <div class="canvas-panel-header">
+              <span class="canvas-title">2D Combine Drill Trajectory</span>
+              <div class="canvas-panel-actions">
+                <div class="zoom-controls-group">
+                  <button id="btnCombineZoomIn" class="btn btn-sm btn-zoom" title="Zoom In (+)">+</button>
+                  <button id="btnCombineZoomOut" class="btn btn-sm btn-zoom" title="Zoom Out (−)">−</button>
+                  <button id="btnCombineZoomReset" class="btn btn-sm btn-zoom" title="Reset View (Double-click field)">⟲</button>
+                </div>
+              </div>
+              <div class="canvas-legend">
+                <span class="legend-item"><span class="legend-dot dot-player"></span> Player (Speed Heatmap)</span>
+                <span class="legend-item"><span class="legend-dot dot-ball"></span> Ball (Trap 2 Dashed)</span>
+                <span class="legend-item"><span class="legend-arrow arrow-dir">&rarr;</span> Direction (dir)</span>
+              </div>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="combineCanvas" class="combineFieldCanvas" width="600" height="420"></canvas>
+            </div>
           </div>
-          <div class="canvas-wrapper">
-            <canvas id="multiTimeseriesCanvas" width="520" height="440"></canvas>
-          </div>
-        </div>
-      </div>
 
-      <!-- ROOKIE ROSTER & KINEMATICS TABLE -->
-      <div class="mr-roster-section">
-        <h3 class="mr-roster-title">Rookies on This Play</h3>
-        <div class="plays-table-container">
-          <table class="plays-table" id="mrRosterTable">
-            <thead>
-              <tr>
-                <th>Color</th>
-                <th>Side</th>
-                <th>Team</th>
-                <th>Player</th>
-                <th>Pos</th>
-                <th>Align</th>
-                <th>Draft</th>
-                <th>Live Speed</th>
-                <th>Max Speed</th>
-                <th>Max Accel</th>
-                <th>Dist Run</th>
-                <th>Peak G</th>
-              </tr>
-            </thead>
-            <tbody id="mrRosterBody">
-              <tr>
-                <td colspan="12" class="table-empty">No play loaded.</td>
-              </tr>
-            </tbody>
-          </table>
+          <!-- Right: 10 Hz Kinematics Timeseries Canvas -->
+          <div class="canvas-panel">
+            <div class="canvas-panel-header">
+              <span class="canvas-title">10 Hz Telemetry Timeseries</span>
+              <div class="canvas-legend">
+                <span class="legend-item text-cyan">&#9632; Speed (s)</span>
+                <span class="legend-item text-violet">&#9632; Accel (a)</span>
+                <span class="legend-item text-amber">&#9632; Angular (&omega;)</span>
+                <span class="legend-item text-emerald">&#9632; Curvature (&kappa;)</span>
+              </div>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="timeseriesCanvas" width="600" height="420"></canvas>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
+
+        <!-- F1 Friction Circle (G-G Diagram) & Trail-Braking Panel -->
+        <div class="gg-diagram-panel gg-combine-panel" id="combineGGPanel">
+          <div class="gg-panel-header">
+            <div>
+              <div class="gg-panel-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="2" x2="12" y2="22"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                </svg>
+                <span>ATHLETE FORCE ENVELOPE (G-G) &amp; KDE TOPOGRAPHY</span>
+              </div>
+              <span class="gg-panel-subtitle">Peak Acceleration Envelope &bull; 2D Kernel Density Estimation &bull; Forward/Braking (a<sub>t</sub>) vs Lateral Cut (a<sub>lat</sub>)</span>
+            </div>
+            <div class="gg-panel-controls">
+              <div class="gg-pill-group" id="combineGGScopeGroup">
+                <button class="gg-pill active" data-scope="play" id="btnCombineGGScopePlay">Drill</button>
+                <button class="gg-pill" data-scope="season" id="btnCombineGGScopeSeason">Full Cloud</button>
+              </div>
+              <div class="gg-pill-group" id="combineGGModeGroup">
+                <button class="gg-pill active" data-mode="hybrid" id="btnCombineGGModeHybrid">Hybrid</button>
+                <button class="gg-pill" data-mode="kde" id="btnCombineGGModeKDE">Heatmap</button>
+                <button class="gg-pill" data-mode="scatter" id="btnCombineGGModeScatter">Scatter</button>
+              </div>
+            </div>
+          </div>
+          <div class="gg-panel-body">
+            <div class="gg-canvas-wrapper">
+              <canvas id="combineGGCanvas" width="320" height="280"></canvas>
+            </div>
+            <div class="gg-panel-stats">
+              <div class="gg-stat-item">
+                <span class="gg-stat-label">Sustained Grip (G<sub>sust</sub>)</span>
+                <span class="gg-stat-value text-amber" id="combineGGSustained">-- g</span>
+              </div>
+              <div class="gg-stat-item">
+                <span class="gg-stat-label">Impulse Coupling (&Delta;t<sub>impulse</sub>)</span>
+                <span class="gg-stat-value text-cyan" id="combineGGImpulse">-- ms</span>
+              </div>
+              <div class="gg-stat-item">
+                <span class="gg-stat-label">Coasting % (&ge;1.5 yd/s)</span>
+                <span class="gg-stat-value text-emerald" id="combineGGCoasting">-- %</span>
+              </div>
+              <div class="gg-stat-item">
+                <span class="gg-stat-label">Combined Accel (G<sub>comb</sub>)</span>
+                <span class="gg-stat-value text-amber" id="combineGGGComb">-- g</span>
+              </div>
+              <div class="gg-stat-item">
+                <span class="gg-stat-label">Decel-Cut Sync</span>
+                <span class="gg-stat-value text-cyan" id="combineGGOverlap">-- %</span>
+              </div>
+              <div class="gg-stat-item">
+                <span class="gg-stat-label">Min Speed in Cut</span>
+                <span class="gg-stat-value text-emerald" id="combineGGApex">-- yd/s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Synchronized Playback Controls Bar -->
+        <div class="playback-bar" id="playbackBar">
+          <div class="playback-buttons">
+            <button id="btnPlayPause" class="btn btn-playback btn-primary" title="Play/Pause (Space)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5,3 19,12 5,21"/>
+              </svg>
+              <span>Play</span>
+            </button>
+            <button id="btnStepBack" class="btn btn-playback" title="Step Back 1 Frame (Left Arrow)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="19,20 9,12 19,4"/>
+                <line x1="5" y1="4" x2="5" y2="20" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            <button id="btnStepForward" class="btn btn-playback" title="Step Forward 1 Frame (Right Arrow)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5,4 15,12 5,20"/>
+                <line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            <button id="btnReset" class="btn btn-playback" title="Reset to Start (Home)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Scrubber Slider -->
+          <div class="playback-scrubber-container">
+            <input type="range" id="playbackScrubber" min="0" max="0" value="0" step="1" class="playback-slider">
+            <div class="playback-readout" id="playbackTimeDisplay">
+              Frame 0 / 0 (0.00s / 0.00s)
+            </div>
+          </div>
+
+          <!-- Playback Speed Multiplier -->
+          <div class="playback-rate-container">
+            <label for="playbackRateSelect">Speed</label>
+            <select id="playbackRateSelect" class="rate-select">
+              <option value="0.5">0.5x</option>
+              <option value="1.0" selected>1.0x</option>
+              <option value="2.0">2.0x</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- TAB 2: GAME EXPLORER (M4 Turn-Key Implementation)                 -->
+    <!-- ================================================================== -->
+    <div id="tab-game" class="tab-pane" data-tab="tabGame">
+      <section class="section-card game-explorer-section">
+        <div class="section-header">
+          <h2 class="section-title">Game &amp; Play Kinematics Explorer</h2>
+          <span class="section-subtitle">10 Hz multi-year in-game tracking telemetry with body orientation and slip angle</span>
+        </div>
+        
+        <!-- Zero-Snap Rookie Placeholder Card (Displayed when games.length === 0) -->
+        <div id="zeroSnapCard" class="zero-snap-card" style="display: none;">
+          <div class="zero-snap-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <h3 class="zero-snap-title">No Game Tracking Telemetry Recorded</h3>
+          <p class="zero-snap-description">
+            No game tracking telemetry recorded for this player (0 career NFL regular season snaps).
+          </p>
+          <p class="zero-snap-subtext">
+            This prospect has not logged active regular season playing time in the 2023–2025 Next Gen Stats database. Official NFL Scouting Combine testing measurements, NGS athleticism scores, and 10 Hz tracked combine drills remain fully accessible on Tab 1.
+          </p>
+          <button id="btnSwitchToCombine" class="btn btn-primary btn-switch-tab">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Switch to Tab 1: Combine Explorer
+          </button>
+        </div>
+
+        <!-- Main Tab 2 Interactive Content Wrapper (Hidden for 0-snap rookies) -->
+        <div id="gameExplorerContent">
+          <!-- Game Filters Toolbar -->
+          <div class="game-filters-toolbar" id="gameFiltersToolbar">
+            <div class="filter-group">
+              <label for="gameSeasonSelect">Season</label>
+              <select id="gameSeasonSelect" class="filter-select">
+                <option value="">All Seasons</option>
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+              </select>
+            </div>
+
+            <div class="filter-group flex-2">
+              <label for="gameSelect">Select Game</label>
+              <select id="gameSelect" class="filter-select">
+                <option value="">Select a game...</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="playTypeFilter">Play Type</label>
+              <select id="playTypeFilter" class="filter-select">
+                <option value="">All Types</option>
+                <option value="PASS">Pass Plays</option>
+                <option value="RUN">Run Plays</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="playPositionFilter">Lined Up Position</label>
+              <select id="playPositionFilter" class="filter-select">
+                <option value="">All Alignments</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Plays Table Container -->
+          <div class="plays-table-container" id="playsTableContainer">
+            <table class="plays-table" id="playsTable">
+              <thead>
+                <tr>
+                  <th>Play ID</th>
+                  <th>Qtr</th>
+                  <th>Clock</th>
+                  <th>Type</th>
+                  <th>Align</th>
+                  <th>EPA</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody id="playsTableBody">
+                <tr>
+                  <td colspan="7" class="table-empty">Select a game above to inspect play telemetry.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Play Metadata Card -->
+          <div id="playMetadataCard" class="play-metadata-card">
+            <div class="metadata-card-header">
+              <div class="metadata-badges-left">
+                <div class="situation-badge" id="metaSituationBadge">
+                  <span class="badge-qtr" id="metaQuarter">Q1</span>
+                  <span class="badge-clock font-mono" id="metaClock">15:00</span>
+                  <span class="badge-divider">•</span>
+                  <span class="badge-down-dist" id="metaDownDistance">1st &amp; 10</span>
+                  <span class="badge-divider">•</span>
+                  <span class="badge-yardline font-mono" id="metaYardline">--</span>
+                </div>
+                <span class="badge badge-position" id="metaLinedUpPos">WR</span>
+                <span class="badge badge-play-type" id="metaPlayType">PASS</span>
+              </div>
+
+              <div class="metadata-badges-right">
+                <a id="btnSendSnapToSpatial" href="compare.html" class="btn btn-sm btn-spatial-bridge" title="Compare this game play in Spatial Comparison Lab">
+                  ⚡ Compare Play in Spatial Lab
+                </a>
+                <div class="epa-pill positive" id="metaEpaPill">
+                  <span class="epa-label">EPA</span>
+                  <span class="epa-value font-mono" id="metaEpaValue">+0.00</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="play-description-block">
+              <div class="description-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </div>
+              <p id="metaDescription" class="play-description-text">
+                Select a play to inspect telemetry description.
+              </p>
+            </div>
+          </div>
+
+          <!-- Vehicle Dynamics & Biomechanical Stability Card (F1 / NGS) -->
+          <div id="vehicleDynamicsCard" class="vehicle-dynamics-card">
+            <div class="vd-header">
+              <div class="vd-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="2" x2="12" y2="22"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                </svg>
+                <span>PLAYER BIOMECHANICS &amp; CUT STABILITY</span>
+                <span class="vd-subtitle">Body Lean Angle (&beta;), Turn Rate (&beta;&#775;) &amp; Acceleration Jerk (j)</span>
+              </div>
+              <div id="vdStatusBadge" class="vd-status-badge status-on-rails">
+                <span class="status-indicator-dot"></span>
+                <span id="vdStatusText">INLINE SPRINT</span>
+              </div>
+            </div>
+
+            <div class="vd-cockpit-layout">
+            <div class="vd-metrics-grid">
+              <div class="vd-metric-box">
+                <span class="vd-metric-label">Body Lean Angle (&beta;)</span>
+                <span class="vd-metric-value font-mono" id="vdBetaVal">0.0&deg;</span>
+                <span class="vd-metric-desc" id="vdBetaInterpretation">Tiszta el&otilde;rehalad&aacute;s (&le;10&deg;)</span>
+              </div>
+              <div class="vd-metric-box">
+                <span class="vd-metric-label">Turn Rate (&beta;&#775;)</span>
+                <span class="vd-metric-value font-mono" id="vdBetaRateVal">0.0&deg;/s</span>
+                <span class="vd-metric-desc">d&beta;/dt (Sz&ouml;gv&aacute;ltoz&aacute;s sebess&eacute;ge)</span>
+              </div>
+              <div class="vd-metric-box">
+                <span class="vd-metric-label">Acceleration Jerk (j)</span>
+                <span class="vd-metric-value font-mono" id="vdJerkVal">0.0 yd/s&sup3;</span>
+                <span class="vd-metric-desc">da/dt (R&aacute;ndul&aacute;s / T&uuml;ske)</span>
+              </div>
+              <div class="vd-metric-box vd-incidents-box">
+                <div class="vd-incidents-header">
+                  <span class="vd-metric-label">Sharp Cut Redirects</span>
+                  <span class="vd-incident-count font-mono" id="vdSnapCount">0</span>
+                </div>
+                <div class="vd-snap-pills" id="vdSnapPills">
+                  <span class="no-incidents">Egyens&uacute;lyban (0 t&uuml;ske)</span>
+                </div>
+              </div>
+              <div class="vd-metric-box">
+                <span class="vd-metric-label">Total Force Load (G<sub>comb</sub>)</span>
+                <span class="vd-metric-value font-mono text-amber" id="vdGCombVal">0.00 g</span>
+                <span class="vd-metric-desc" id="vdGCombDesc">&radic;(a<sub>t</sub>&sup2; + a<sub>lat</sub>&sup2;) teljes er&otilde;kifejt&eacute;s</span>
+              </div>
+              <div class="vd-metric-box">
+                <span class="vd-metric-label">Decel-Cut Sync</span>
+                <span class="vd-metric-value font-mono text-cyan" id="vdOverlapVal">0.0%</span>
+                <span class="vd-metric-desc">|a| &gt; P<sub>70</sub> &eacute;s |a<sub>lat</sub>| &gt; P<sub>70</sub> &aacute;tfed&eacute;s</span>
+              </div>
+              <div class="vd-metric-box">
+                <span class="vd-metric-label">Min Speed in Cut</span>
+                <span class="vd-metric-value font-mono text-emerald" id="vdApexVal">-- yd/s</span>
+                <span class="vd-metric-desc">Sebess&eacute;g az ir&aacute;nyv&aacute;lt&aacute;s (&kappa;<sub>max</sub>) pontj&aacute;n</span>
+              </div>
+              <div class="vd-metric-box">
+                <span class="vd-metric-label">Burst Out of Cut</span>
+                <span class="vd-metric-value font-mono text-violet" id="vdExitTractionVal">-- yd/s&sup2;</span>
+                <span class="vd-metric-desc">&Aacute;tlagos gyorsul&aacute;s a kigyors&iacute;t&aacute;s els&otilde; 0.5s-ben</span>
+              </div>
+            </div>
+
+            <!-- Live In-Game Athlete Force Envelope Canvas -->
+            <div class="gg-diagram-panel gg-game-panel" id="gameGGPanel">
+              <div class="gg-panel-header compact">
+                <div>
+                  <span class="gg-panel-title">ATHLETE FORCE ENVELOPE (KDE)</span>
+                  <span class="gg-panel-subtitle">Forward/Braking vs Lateral Cut Density</span>
+                </div>
+                <div class="gg-panel-controls compact">
+                  <div class="gg-pill-group" id="gameGGScopeGroup">
+                    <button class="gg-pill active" data-scope="play" id="btnGameGGScopePlay">Snap</button>
+                    <button class="gg-pill" data-scope="season" id="btnGameGGScopeSeason">Season</button>
+                  </div>
+                  <div class="gg-pill-group" id="gameGGModeGroup">
+                    <button class="gg-pill active" data-mode="hybrid" id="btnGameGGModeHybrid">Hybrid</button>
+                    <button class="gg-pill" data-mode="kde" id="btnGameGGModeKDE">KDE</button>
+                    <button class="gg-pill" data-mode="scatter" id="btnGameGGModeScatter">Scatter</button>
+                  </div>
+                </div>
+              </div>
+              <div class="gg-canvas-wrapper">
+                <canvas id="gameGGCanvas" width="280" height="260"></canvas>
+              </div>
+              <div class="gg-panel-stats compact">
+                <div class="gg-stat-item">
+                  <span class="gg-stat-label">G<sub>sust</sub> / G<sub>max</sub></span>
+                  <span class="gg-stat-value text-amber" id="gameGGSustained">-- g</span>
+                </div>
+                <div class="gg-stat-item">
+                  <span class="gg-stat-label">Impulse &Delta;t</span>
+                  <span class="gg-stat-value text-cyan" id="gameGGImpulse">-- ms</span>
+                </div>
+                <div class="gg-stat-item">
+                  <span class="gg-stat-label">Coasting %</span>
+                  <span class="gg-stat-value text-emerald" id="gameGGCoasting">-- %</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+          <!-- Dual Canvas Grid Area (Left: 2D Field, Right: Timeseries) -->
+          <div class="canvases-grid" id="gameCanvasesGrid">
+            <!-- Left: 2D NFL Field Canvas -->
+            <div class="canvas-panel">
+              <div class="canvas-panel-header">
+                <span class="canvas-title">2D NFL Field Trajectory</span>
+                <div class="canvas-panel-actions">
+                  <div class="zoom-controls-group">
+                    <button id="btnGameZoomIn" class="btn btn-sm btn-zoom" title="Zoom In (+)">+</button>
+                    <button id="btnGameZoomOut" class="btn btn-sm btn-zoom" title="Zoom Out (−)">−</button>
+                    <button id="btnGameZoomReset" class="btn btn-sm btn-zoom" title="Reset View (Double-click field)">⟲</button>
+                  </div>
+                  <button id="btnToggleGameView" class="btn btn-sm btn-view-toggle active" title="Toggle Focused Play vs Full Field">
+                    Zoom: Play
+                  </button>
+                </div>
+                <div class="canvas-legend">
+                  <span class="legend-item"><span class="legend-dot dot-player"></span> Player (Speed)</span>
+                  <span class="legend-item"><span class="legend-arrow text-cyan">&rarr;</span> Motion (dir)</span>
+                  <span class="legend-item"><span class="legend-arrow text-amber">&rarr;</span> Facing (o)</span>
+                  <span class="legend-item"><span class="legend-dot dot-slip"></span> Slip Arc (&beta;)</span>
+                </div>
+              </div>
+              <div class="canvas-wrapper">
+                <canvas id="gameFieldCanvas" width="600" height="420"></canvas>
+              </div>
+            </div>
+
+            <!-- Right: 10 Hz Kinematics Timeseries Canvas -->
+            <div class="canvas-panel">
+              <div class="canvas-panel-header">
+                <span class="canvas-title">10 Hz Telemetry Timeseries</span>
+                <div class="canvas-legend">
+                  <span class="legend-item text-cyan">&#9632; Speed (s)</span>
+                  <span class="legend-item text-violet">&#9632; Accel (a)</span>
+                  <span class="legend-item text-amber">&#9632; Angular (&omega;)</span>
+                  <span class="legend-item text-emerald">&#9632; Curv (&kappa;)</span>
+                  <span class="legend-item text-rose">&#9632; Slip (&beta;)</span>
+                </div>
+              </div>
+              <div class="canvas-wrapper">
+                <canvas id="gameTimeseriesCanvas" width="600" height="420"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Synchronized Playback Controls Bar -->
+          <div class="playback-bar" id="gamePlaybackBar">
+            <div class="playback-buttons">
+              <button id="btnGamePlayPause" class="btn btn-playback btn-primary" title="Play/Pause (Space)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5,3 19,12 5,21"/>
+                </svg>
+                <span>Play</span>
+              </button>
+              <button id="btnGameStepBack" class="btn btn-playback" title="Step Back 1 Frame (Left Arrow)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="19,20 9,12 19,4"/>
+                  <line x1="5" y1="4" x2="5" y2="20" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </button>
+              <button id="btnGameStepForward" class="btn btn-playback" title="Step Forward 1 Frame (Right Arrow)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5,4 15,12 5,20"/>
+                  <line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </button>
+              <button id="btnGameReset" class="btn btn-playback" title="Reset to Start (Home)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Scrubber Slider -->
+            <div class="playback-scrubber-container">
+              <input type="range" id="gamePlaybackScrubber" min="0" max="0" value="0" step="1" class="playback-slider">
+              <div class="playback-readout" id="gamePlaybackTimeDisplay">
+                Frame: 0 / 0 | Time: 0.0s / 0.0s
+              </div>
+            </div>
+
+            <!-- Playback Speed Multiplier -->
+            <div class="playback-rate-container">
+              <label for="gamePlaybackRateSelect">Speed</label>
+              <select id="gamePlaybackRateSelect" class="rate-select">
+                <option value="0.5">0.5x</option>
+                <option value="1.0" selected>1.0x</option>
+                <option value="2.0">2.0x</option>
+              </select>
+            </div>
+
+            <!-- Dynamic Event Marker Jump Buttons -->
+            <div class="game-event-jump-bar" id="gameEventJumpBar" style="display: none;">
+              <span class="jump-label">Milestones:</span>
+              <div class="jump-buttons-list" id="gameEventButtons"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
 
   </main>
 
-  <script type="module" src="./js/multi_rookie_app.js?v=1"></script>
+  <!-- Global Loading Spinner Overlay -->
+  <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="spinner-container">
+      <div class="spinner"></div>
+      <span id="loadingMessage" class="loading-text">Loading telemetry...</span>
+    </div>
+  </div>
+
+  <!-- Global Toast Notification -->
+  <div id="toastNotification" class="toast" style="display: none;">
+    <span id="toastMessage"></span>
+  </div>
+
+  <!-- Scripts (ES6 Module Entrypoints) -->
+  <script type="module" src="./js/gg_diagram.js?v=5"></script>
+  <script type="module" src="./js/game_field.js?v=5"></script>
+  <script type="module" src="./js/spatial_strip.js?v=5"></script>
+  <script type="module" src="./js/app.js?v=5"></script>
 </body>
 </html>

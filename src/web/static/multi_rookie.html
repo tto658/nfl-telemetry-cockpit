@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFL Multi-Rookie Play Lab — 2+ Cohort Prospects Telemetry</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>">
+  <link rel="stylesheet" href="./css/styles.css?v=6">
+  <link rel="stylesheet" href="./css/multi_rookie.css?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme mr-body">
+
+  <!-- GLOBAL HEADER -->
+  <header class="global-header mr-header">
+    <div class="header-brand-nav">
+      <a href="multi_rookie.html" class="header-brand">
+        <div class="brand-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="12" rx="10" ry="6" transform="rotate(-45 12 12)"/>
+            <line x1="8" y1="8" x2="16" y2="16"/>
+            <line x1="10.5" y1="10" x2="12" y2="11.5"/>
+            <line x1="12" y1="12.5" x2="13.5" y2="14"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">NFL MULTI-ROOKIE LAB</span>
+          <span class="brand-subtitle">Plays with &ge;2 Cohort Prospects &bull; 10 Hz Tracking</span>
+        </div>
+      </a>
+
+      <nav class="header-nav-pills">
+        <a href="index.html" class="nav-pill" title="Single-prospect deep dive">
+          <span>🏈</span> Prospect Explorer
+        </a>
+        <a href="compare.html" class="nav-pill" title="Head-to-Head Spatial Comparison Lab">
+          <span>⚡</span> Head-to-Head Comparison
+        </a>
+        <a href="multi_rookie.html" class="nav-pill active" title="Plays with 2+ Cohort Rookies">
+          <span>👥</span> Multi-Rookie Plays
+        </a>
+      </nav>
+    </div>
+
+    <div class="mr-header-stats">
+      <div class="mr-stat-pill">
+        <span class="mr-stat-label">Matching Plays</span>
+        <span id="statFilteredCount" class="mr-stat-val text-cyan font-mono">--</span>
+      </div>
+      <div class="mr-stat-pill">
+        <span class="mr-stat-label">Total 2+ Rookie Plays</span>
+        <span id="statTotalCount" class="mr-stat-val font-mono">--</span>
+      </div>
+      <div class="mr-stat-pill">
+        <span class="mr-stat-label">Max Rookies/Play</span>
+        <span id="statMaxRookies" class="mr-stat-val text-amber font-mono">--</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- LOADING BANNER -->
+  <div id="loadingBanner" class="mr-loading-banner">
+    <div class="mr-spinner"></div>
+    <span id="loadingStatusText">Loading 85,109 multi-rookie plays from ZSTD Parquet...</span>
+  </div>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="mr-main">
+
+    <!-- FILTER TOOLBAR -->
+    <section class="section-card mr-filter-card">
+      <div class="mr-filter-grid">
+        <div class="mr-filter-item">
+          <label for="filterMinRookies">Min Rookies</label>
+          <select id="filterMinRookies" class="filter-select">
+            <option value="2" selected>2+ Rookies</option>
+            <option value="3">3+ Rookies</option>
+            <option value="4">4+ Rookies</option>
+            <option value="5">5+ Rookies</option>
+            <option value="6">6+ Rookies</option>
+            <option value="7">7+ Rookies</option>
+            <option value="8">8+ Rookies</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item">
+          <label for="filterSeason">Season</label>
+          <select id="filterSeason" class="filter-select">
+            <option value="">All (2023–2025)</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item">
+          <label for="filterPlayType">Play Type</label>
+          <select id="filterPlayType" class="filter-select">
+            <option value="">All Types</option>
+            <option value="PASS">PASS</option>
+            <option value="RUN">RUN</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item">
+          <label for="filterMatchup">Matchup</label>
+          <select id="filterMatchup" class="filter-select">
+            <option value="">All Matchups</option>
+            <option value="h2h">Head-to-Head (Both Teams)</option>
+            <option value="same">Teammates Only (1 Team)</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item">
+          <label for="filterTeam">Team</label>
+          <select id="filterTeam" class="filter-select">
+            <option value="">All Teams</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item">
+          <label for="filterPosition">Position</label>
+          <select id="filterPosition" class="filter-select">
+            <option value="">All Positions</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item mr-filter-wide">
+          <label for="filterRookie">Rookie Involved</label>
+          <select id="filterRookie" class="filter-select">
+            <option value="">All 510 Rookies</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item mr-filter-wide">
+          <label for="filterGame">Game</label>
+          <select id="filterGame" class="filter-select">
+            <option value="">All Games</option>
+          </select>
+        </div>
+
+        <div class="mr-filter-item mr-filter-wide">
+          <label for="filterSearch">Search Description / Name</label>
+          <input id="filterSearch" type="text" class="mr-input" placeholder="e.g. touchdown, Stroud, sack..." autocomplete="off">
+        </div>
+
+        <div class="mr-filter-actions">
+          <button id="btnResetFilters" class="btn btn-sm mr-btn-reset" type="button">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLAYS TABLE SECTION -->
+    <section class="section-card mr-table-section">
+      <div class="mr-table-header">
+        <div>
+          <h2 class="section-title">Multi-Rookie Plays</h2>
+          <span id="tableSubtitle" class="section-subtitle">Click any play to load 10 Hz multi-player tracking telemetry</span>
+        </div>
+        <div class="mr-pagination">
+          <label for="pageSizeSelect" class="mr-page-label">Rows:</label>
+          <select id="pageSizeSelect" class="filter-select mr-page-select">
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <button id="btnPrevPage" class="btn btn-sm mr-page-btn" type="button">&lsaquo; Prev</button>
+          <span id="pageInfoText" class="mr-page-info font-mono">1 / 1</span>
+          <button id="btnNextPage" class="btn btn-sm mr-page-btn" type="button">Next &rsaquo;</button>
+        </div>
+      </div>
+
+      <div class="plays-table-container mr-plays-scroll">
+        <table class="plays-table" id="mrPlaysTable">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="season">Season / Wk</th>
+              <th>Matchup</th>
+              <th>Qtr / Clock</th>
+              <th>Down &amp; Dist</th>
+              <th>Type</th>
+              <th class="sortable" data-sort="n_rookies"># Rookies</th>
+              <th>Rookies on Play</th>
+              <th class="sortable" data-sort="expected_points_added">EPA</th>
+              <th class="sortable" data-sort="yards_gained">Yds</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="mrPlaysBody">
+            <tr>
+              <td colspan="10" class="table-empty">Loading multi-rookie plays...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SELECTED PLAY STAGE -->
+    <section id="playStageSection" class="section-card mr-stage-section">
+      <div class="mr-stage-top">
+        <div class="mr-play-badges">
+          <span id="stageMatchupBadge" class="badge badge-position">-- @ --</span>
+          <span id="stageSituationBadge" class="badge badge-pick font-mono">Q-- • --:-- • --</span>
+          <span id="stageTypeBadge" class="badge badge-play-type">--</span>
+          <span id="stageFormationBadge" class="mr-meta-chip" style="display:none;">--</span>
+          <span id="stageCoverageBadge" class="mr-meta-chip" style="display:none;">--</span>
+        </div>
+        <div class="mr-stage-kpis">
+          <div class="epa-pill" id="stageEpaPill">
+            <span class="epa-label">EPA</span>
+            <span id="stageEpaVal" class="epa-value font-mono">--</span>
+          </div>
+          <div class="epa-pill">
+            <span class="epa-label">YDS</span>
+            <span id="stageYdsVal" class="epa-value font-mono">--</span>
+          </div>
+          <div class="epa-pill">
+            <span class="epa-label">ROOKIES</span>
+            <span id="stageRookieCountVal" class="epa-value font-mono text-cyan">--</span>
+          </div>
+        </div>
+      </div>
+
+      <p id="stageDescription" class="mr-play-desc">Select a play from the table above to inspect multi-rookie trajectories.</p>
+
+      <!-- PLAYBACK & VIEW CONTROLS -->
+      <div class="mr-playback-bar">
+        <div class="mr-playback-left">
+          <button id="btnPlayPause" class="btn btn-primary btn-sm" type="button" disabled>&#9654; Play</button>
+          <button id="btnPlayReset" class="btn btn-sm mr-btn-reset" type="button" disabled>&#8634; Reset</button>
+          <button id="btnStepBack" class="btn btn-sm mr-btn-reset" type="button" disabled>&minus;0.1s</button>
+          <button id="btnStepFwd" class="btn btn-sm mr-btn-reset" type="button" disabled>+0.1s</button>
+          <select id="playbackSpeedSelect" class="filter-select mr-speed-select">
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1.0x</option>
+            <option value="2">2.0x</option>
+          </select>
+        </div>
+
+        <div class="mr-scrubber-wrap">
+          <span id="playbackTimeLabel" class="font-mono mr-time-label">0.0s / 0.0s</span>
+          <input id="playbackScrubber" type="range" min="0" max="0" value="0" step="1" class="mr-scrubber" disabled>
+          <span id="playbackEventBadge" class="mr-event-badge" style="display:none;">--</span>
+        </div>
+
+        <div class="mr-view-toggle">
+          <button id="btnZoomAuto" class="gg-pill active" type="button">Auto-Zoom</button>
+          <button id="btnZoomFull" class="gg-pill" type="button">Full Field</button>
+        </div>
+      </div>
+
+      <!-- FIELD + TIMESERIES GRID -->
+      <div class="mr-visual-grid">
+        <div class="canvas-panel">
+          <div class="canvas-panel-header">
+            <span class="canvas-title">2D Multi-Rookie Field Tracking (10 Hz)</span>
+            <div class="canvas-legend">
+              <span class="legend-item"><span class="legend-dot" style="background:#06b6d4;"></span> Offense Rookie</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Defense Rookie</span>
+              <span class="legend-item"><span class="legend-arrow arrow-dir">&rarr;</span> Velocity &amp; Heading</span>
+            </div>
+          </div>
+          <div class="canvas-wrapper mr-field-wrap">
+            <canvas id="multiFieldCanvas" width="900" height="440"></canvas>
+            <div id="fieldLoadingOverlay" class="mr-field-overlay" style="display:none;">
+              <div class="mr-spinner"></div>
+              <span id="fieldLoadingText">Loading player telemetry...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="canvas-panel">
+          <div class="canvas-panel-header">
+            <span class="canvas-title">Synchronized Rookie Speed (yd/s)</span>
+            <span class="section-subtitle">Click a rookie row below to highlight</span>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="multiTimeseriesCanvas" width="520" height="440"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROOKIE ROSTER & KINEMATICS TABLE -->
+      <div class="mr-roster-section">
+        <h3 class="mr-roster-title">Rookies on This Play</h3>
+        <div class="plays-table-container">
+          <table class="plays-table" id="mrRosterTable">
+            <thead>
+              <tr>
+                <th>Color</th>
+                <th>Side</th>
+                <th>Team</th>
+                <th>Player</th>
+                <th>Pos</th>
+                <th>Align</th>
+                <th>Draft</th>
+                <th>Live Speed</th>
+                <th>Max Speed</th>
+                <th>Max Accel</th>
+                <th>Dist Run</th>
+                <th>Peak G</th>
+              </tr>
+            </thead>
+            <tbody id="mrRosterBody">
+              <tr>
+                <td colspan="12" class="table-empty">No play loaded.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module" src="./js/multi_rookie_app.js?v=1"></script>
+</body>
+</html>
