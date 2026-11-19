@@ -1,0 +1,737 @@
+/**
+ * NFL Multi-Rookie Play Lab — Main Application Controller
+ * Filters and visualizes all plays with >= 2 cohort rookies at 10 Hz.
+ */
+
+import { parquetReadObjects, compressors } from './vendor/hyparquet.bundle.mjs';
+import {
+  MultiRookieFieldCanvas,
+  MultiRookieTimeseriesCanvas,
+  ROOKIE_PALETTE,
+} from './multi_rookie_field.js';
+
+const STATIC_BASE = './data';
+const MAX_PARQUET_CACHE = 80;
+const parquetCache = new Map();
+
+const state = {
+  allPlays: [],
+  filteredPlays: [],
+  playersById: new Map(),
+  gamesById: new Map(),
+  page: 1,
+  pageSize: 25,
+  sortCol: 'n_rookies',
+  sortDir: 'desc',
+  filters: {
+    minRookies: 2,
+    season: '',
+    playType: '',
+    matchup: '',
+    team: '',
+    position: '',
+    rookieId: '',
+    gameId: '',
+    search: '',
+  },
+  selectedPlay: null,
+  tracks: [],
+  maxFrames: 0,
+  events: [],
+  frameIdx: 0,
+  isPlaying: false,
+  playbackSpeed: 1.0,
+  rafId: null,
+  lastTickMs: 0,
+  highlightedNflId: null,
+  fieldCanvas: null,
+  tsCanvas: null,
+};
+
+const DOM = {};
+
+function cacheDOM() {
+  const ids = [
+    'loadingBanner', 'loadingStatusText',
+    'statFilteredCount', 'statTotalCount', 'statMaxRookies',
+    'filterMinRookies', 'filterSeason', 'filterPlayType', 'filterMatchup',
+    'filterTeam', 'filterPosition', 'filterRookie', 'filterGame', 'filterSearch',
+    'btnResetFilters', 'tableSubtitle', 'pageSizeSelect', 'btnPrevPage',
+    'btnNextPage', 'pageInfoText', 'mrPlaysTable', 'mrPlaysBody',
+    'stageMatchupBadge', 'stageSituationBadge', 'stageTypeBadge',
+    'stageFormationBadge', 'stageCoverageBadge', 'stageEpaPill',
+    'stageEpaVal', 'stageYdsVal', 'stageRookieCountVal', 'stageDescription',
+    'btnPlayPause', 'btnPlayReset', 'btnStepBack', 'btnStepFwd',
+    'playbackSpeedSelect', 'playbackTimeLabel', 'playbackScrubber',
+    'playbackEventBadge', 'btnZoomAuto', 'btnZoomFull',
+    'multiFieldCanvas', 'multiTimeseriesCanvas', 'fieldLoadingOverlay',
+    'fieldLoadingText', 'mrRosterBody',
+  ];
+  for (const id of ids) {
+    DOM[id] = document.getElementById(id);
+  }
+}
+
+async function fetchParquetCached(relPath) {
+  if (parquetCache.has(relPath)) {
+    const val = parquetCache.get(relPath);
+    parquetCache.delete(relPath);
+    parquetCache.set(relPath, val);
+    return val;
+  }
+  const res = await fetch(`${STATIC_BASE}/${relPath}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${relPath}`);
+  const ab = await res.arrayBuffer();
+  const rows = await parquetReadObjects({ file: ab, compressors });
+  if (parquetCache.size >= MAX_PARQUET_CACHE) {
+    const oldest = parquetCache.keys().next().value;
+    parquetCache.delete(oldest);
+  }
+  parquetCache.set(relPath, rows);
+  return rows;
+}
+
+function formatDownDist(down, ytg) {
+  if (!down || down <= 0) return '--';
+  const ord = down === 1 ? '1st' : down === 2 ? '2nd' : down === 3 ? '3rd' : `${down}th`;
+  return `${ord} & ${ytg ?? '--'}`;
+}
+
+function formatEpa(epa) {
+  if (epa == null || Number.isNaN(epa)) return '--';
+  return (epa >= 0 ? '+' : '') + Number(epa).toFixed(2);
+}
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function populateFilterOptions() {
+  // Teams
+  const teams = new Set();
+  const positions = new Set();
+  for (const p of state.allPlays) {
+    if (p.home_team_abbr) teams.add(p.home_team_abbr);
+    if (p.visitor_team_abbr) teams.add(p.visitor_team_abbr);
+    if (p.rookie_positions) {
+      for (const pos of p.rookie_positions.split(',')) {
+        if (pos) positions.add(pos);
+      }
+    }
+  }
+
+  for (const t of [...teams].sort()) {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    DOM.filterTeam.appendChild(opt);
+  }
+
+  for (const pos of [...positions].sort()) {
+    const opt = document.createElement('option');
+    opt.value = pos;
+    opt.textContent = pos;
+    DOM.filterPosition.appendChild(opt);
+  }
+
+  // Rookies
+  const sortedPlayers = [...state.playersById.values()].sort((a, b) =>
+    (a.display_name || '').localeCompare(b.display_name || '')
+  );
+  for (const pl of sortedPlayers) {
+    const opt = document.createElement('option');
+    opt.value = String(pl.nfl_id);
+    opt.textContent = `${pl.display_name} (${pl.nfl_position || '--'} • '${String(pl.draft_year || '').slice(-2)})`;
+    DOM.filterRookie.appendChild(opt);
+  }
+
+  refreshGameDropdown();
+}
+
+function refreshGameDropdown() {
+  const season = state.filters.season;
+  const team = state.filters.team;
+  const prevVal = DOM.filterGame.value;
+
+  const games = [...state.gamesById.values()]
+    .filter((g) => (!season || String(g.season) === season))
+    .filter((g) => (!team || g.home_team_abbr === team || g.visitor_team_abbr === team))
+    .sort((a, b) => (b.season - a.season) || (a.week - b.week) || (a.game_id - b.game_id));
+
+  DOM.filterGame.innerHTML = '<option value="">All Games</option>';
+  for (const g of games) {
+    const opt = document.createElement('option');
+    opt.value = String(g.game_id);
+    opt.textContent = `${g.season} Wk ${g.week}: ${g.visitor_team_abbr} @ ${g.home_team_abbr}`;
+    DOM.filterGame.appendChild(opt);
+  }
+  if (games.some((g) => String(g.game_id) === prevVal)) {
+    DOM.filterGame.value = prevVal;
+  } else {
+    state.filters.gameId = '';
+  }
+}
+
+function applyFiltersAndSort() {
+  const f = state.filters;
+  const searchLower = f.search.trim().toLowerCase();
+  const rookieToken = f.rookieId ? `,${f.rookieId},` : '';
+  const posToken = f.position ? `,${f.position},` : '';
+  const teamToken = f.team ? `,${f.team},` : '';
+
+  const filtered = [];
+  for (const p of state.allPlays) {
+    if (p.n_rookies < f.minRookies) continue;
+    if (f.season && String(p.season) !== f.season) continue;
+    if (f.playType && p.play_type !== f.playType) continue;
+    if (f.matchup === 'h2h' && p.n_teams < 2) continue;
+    if (f.matchup === 'same' && p.n_teams !== 1) continue;
+    if (f.gameId && String(p.game_id) !== f.gameId) continue;
+    if (teamToken && !`,${p.rookie_teams},`.includes(teamToken) && p.home_team_abbr !== f.team && p.visitor_team_abbr !== f.team) continue;
+    if (posToken && !`,${p.rookie_positions},`.includes(posToken)) continue;
+    if (rookieToken && !`,${p.rookie_ids},`.includes(rookieToken)) continue;
+    if (searchLower) {
+      const hay = `${p.play_description || ''} ${p.rookie_summary || ''}`.toLowerCase();
+      if (!hay.includes(searchLower)) continue;
+    }
+    filtered.push(p);
+  }
+
+  const col = state.sortCol;
+  const dir = state.sortDir === 'asc' ? 1 : -1;
+  filtered.sort((a, b) => {
+    const va = a[col] ?? -999999;
+    const vb = b[col] ?? -999999;
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return (b.game_id - a.game_id) || (a.play_id - b.play_id);
+  });
+
+  state.filteredPlays = filtered;
+  state.page = 1;
+  DOM.statFilteredCount.textContent = filtered.length.toLocaleString();
+  renderTable();
+}
+
+function renderTable() {
+  const total = state.filteredPlays.length;
+  const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+  if (state.page > totalPages) state.page = totalPages;
+
+  const start = (state.page - 1) * state.pageSize;
+  const end = Math.min(total, start + state.pageSize);
+  const slice = state.filteredPlays.slice(start, end);
+
+  DOM.pageInfoText.textContent = `${state.page} / ${totalPages}`;
+  DOM.btnPrevPage.disabled = state.page <= 1;
+  DOM.btnNextPage.disabled = state.page >= totalPages;
+  DOM.tableSubtitle.textContent =
+    total === 0
+      ? 'No plays match the current filters.'
+      : `Showing ${(start + 1).toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()} matching plays`;
+
+  if (slice.length === 0) {
+    DOM.mrPlaysBody.innerHTML = '<tr><td colspan="10" class="table-empty">No plays match your filters.</td></tr>';
+    return;
+  }
+
+  const selKey = state.selectedPlay ? `${state.selectedPlay.game_id}_${state.selectedPlay.play_id}` : '';
+  const rowsHtml = slice.map((p) => {
+    const key = `${p.game_id}_${p.play_id}`;
+    const isSel = key === selKey;
+    const epaCls = (p.expected_points_added ?? 0) >= 0 ? 'text-emerald' : 'text-rose';
+    const highCls = p.n_rookies >= 5 ? 'high' : '';
+    return `<tr data-gid="${p.game_id}" data-pid="${p.play_id}" class="${isSel ? 'selected-row' : ''}">
+      <td class="font-mono">${p.season} W${p.week}</td>
+      <td class="font-mono">${escapeHtml(p.visitor_team_abbr)}@${escapeHtml(p.home_team_abbr)}</td>
+      <td class="font-mono">Q${p.quarter ?? '-'} ${escapeHtml(p.game_clock || '')}</td>
+      <td class="font-mono">${formatDownDist(p.down, p.yards_to_go)}</td>
+      <td><span class="badge badge-play-type">${escapeHtml(p.play_type)}</span></td>
+      <td><span class="mr-rookie-count-badge ${highCls}">${p.n_rookies}</span></td>
+      <td class="mr-rookies-cell" title="${escapeHtml(p.rookie_summary)}">${escapeHtml(p.rookie_summary)}</td>
+      <td class="font-mono ${epaCls}">${formatEpa(p.expected_points_added)}</td>
+      <td class="font-mono">${p.yards_gained != null ? Math.round(p.yards_gained) : '--'}</td>
+      <td class="mr-desc-cell" title="${escapeHtml(p.play_description)}">${escapeHtml(p.play_description)}</td>
+    </tr>`;
+  }).join('');
+
+  DOM.mrPlaysBody.innerHTML = rowsHtml;
+}
+
+async function selectPlay(play) {
+  stopPlayback();
+  state.selectedPlay = play;
+  state.highlightedNflId = null;
+  renderTable(); // update selected row highlight
+
+  // Update stage header
+  DOM.stageMatchupBadge.textContent = `${play.season} Wk ${play.week} • ${play.visitor_team_abbr} @ ${play.home_team_abbr}`;
+  const ydStr = play.yardline_side && play.yardline_number ? `${play.yardline_side} ${play.yardline_number}` : '--';
+  DOM.stageSituationBadge.textContent = `Q${play.quarter ?? '-'} • ${play.game_clock || '--'} • ${formatDownDist(play.down, play.yards_to_go)} • ${ydStr}`;
+  DOM.stageTypeBadge.textContent = play.play_type;
+
+  if (play.offense_formation) {
+    DOM.stageFormationBadge.style.display = 'inline-block';
+    DOM.stageFormationBadge.textContent = play.offense_formation;
+  } else {
+    DOM.stageFormationBadge.style.display = 'none';
+  }
+
+  if (play.team_coverage_man_zone) {
+    DOM.stageCoverageBadge.style.display = 'inline-block';
+    DOM.stageCoverageBadge.textContent = play.team_coverage_man_zone;
+  } else {
+    DOM.stageCoverageBadge.style.display = 'none';
+  }
+
+  const epa = play.expected_points_added;
+  DOM.stageEpaVal.textContent = formatEpa(epa);
+  DOM.stageEpaPill.classList.toggle('positive', (epa ?? 0) >= 0);
+  DOM.stageEpaPill.classList.toggle('negative', (epa ?? 0) < 0);
+  DOM.stageYdsVal.textContent = play.yards_gained != null ? `${Math.round(play.yards_gained)} yd` : '--';
+  DOM.stageRookieCountVal.textContent = String(play.n_rookies);
+  DOM.stageDescription.textContent = play.play_description || 'No description available.';
+
+  // Load 10 Hz tracking for all rookies on this play
+  const rookieIds = (play.rookie_ids || '').split(',').map((s) => Number(s.trim())).filter(Boolean);
+  const alignments = (play.rookie_alignments || '').split(',');
+  const summaryParts = (play.rookie_summary || '').split(', ');
+
+  DOM.fieldLoadingOverlay.style.display = 'flex';
+  DOM.fieldLoadingText.textContent = `Loading 10 Hz telemetry for ${rookieIds.length} rookies...`;
+  setPlaybackControlsEnabled(false);
+
+  try {
+    const perRookieRows = await Promise.all(
+      rookieIds.map(async (nflId) => {
+        try {
+          const rows = await fetchParquetCached(`parquet/${nflId}/game_tracking_${play.season}.parquet`);
+          const playRows = rows
+            .filter((r) => Number(r.game_id) === play.game_id && Number(r.play_id) === play.play_id)
+            .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+          return { nflId, frames: playRows };
+        } catch (err) {
+          console.warn(`Missing tracking for ${nflId} season ${play.season}:`, err);
+          return { nflId, frames: [] };
+        }
+      })
+    );
+
+    const tracks = [];
+    let maxFrames = 0;
+    const eventMap = new Map();
+
+    perRookieRows.forEach((item, idx) => {
+      const pInfo = state.playersById.get(item.nflId) || {};
+      // Extract team from summaryParts e.g. "Will Anderson (DE•HOU)"
+      let team = '';
+      const sp = summaryParts[idx] || '';
+      const m = sp.match(/•([A-Z0-9]+)\)$/);
+      if (m) team = m[1];
+
+      const isOffense = Boolean(team && play.possession_team && team === play.possession_team);
+      const color = ROOKIE_PALETTE[idx % ROOKIE_PALETTE.length];
+
+      let maxS = 0, maxA = 0, totalDis = 0, peakG = 0;
+      item.frames.forEach((fr, fIdx) => {
+        const s = fr.s ?? 0;
+        const a = Math.abs(fr.a ?? 0);
+        const dis = fr.dis ?? 0;
+        if (s > maxS) maxS = s;
+        if (a > maxA) maxA = a;
+        totalDis += dis;
+        const g = a / 10.725; // yds/s^2 -> g (1g = 32.174 ft/s^2 = 10.725 yd/s^2)
+        if (g > peakG) peakG = g;
+        if (fr.event && !eventMap.has(fIdx)) {
+          eventMap.set(fIdx, String(fr.event));
+        }
+      });
+
+      if (item.frames.length > maxFrames) maxFrames = item.frames.length;
+
+      tracks.push({
+        nflId: item.nflId,
+        name: pInfo.display_name || `Player ${item.nflId}`,
+        pos: pInfo.nfl_position || '--',
+        draftYear: pInfo.draft_year || '--',
+        team,
+        align: alignments[idx] || '--',
+        isOffense,
+        color,
+        frames: item.frames,
+        stats: { maxS, maxA, totalDis, peakG },
+      });
+    });
+
+    const events = [...eventMap.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([idx, label]) => ({ idx, label }));
+
+    state.tracks = tracks;
+    state.maxFrames = maxFrames;
+    state.events = events;
+    state.frameIdx = 0;
+
+    state.fieldCanvas.setTracks(tracks);
+    state.tsCanvas.setTracks(tracks, maxFrames, events);
+
+    DOM.playbackScrubber.min = '0';
+    DOM.playbackScrubber.max = String(Math.max(0, maxFrames - 1));
+    DOM.playbackScrubber.value = '0';
+    setPlaybackControlsEnabled(maxFrames > 1);
+    updateFrameUI();
+  } finally {
+    DOM.fieldLoadingOverlay.style.display = 'none';
+  }
+}
+
+function setPlaybackControlsEnabled(enabled) {
+  DOM.btnPlayPause.disabled = !enabled;
+  DOM.btnPlayReset.disabled = !enabled;
+  DOM.btnStepBack.disabled = !enabled;
+  DOM.btnStepFwd.disabled = !enabled;
+  DOM.playbackScrubber.disabled = !enabled;
+}
+
+function updateFrameUI() {
+  const maxIdx = Math.max(0, state.maxFrames - 1);
+  const curSec = (state.frameIdx * 0.1).toFixed(1);
+  const totSec = (maxIdx * 0.1).toFixed(1);
+  DOM.playbackTimeLabel.textContent = `${curSec}s / ${totSec}s`;
+  DOM.playbackScrubber.value = String(state.frameIdx);
+
+  // Check if any frame at current index has an event
+  let evLabel = '';
+  for (const tr of state.tracks) {
+    const f = tr.frames[state.frameIdx];
+    if (f && f.event) {
+      evLabel = f.event;
+      break;
+    }
+  }
+  if (evLabel) {
+    DOM.playbackEventBadge.style.display = 'inline-block';
+    DOM.playbackEventBadge.textContent = evLabel;
+  } else {
+    DOM.playbackEventBadge.style.display = 'none';
+  }
+
+  state.fieldCanvas.setFrame(state.frameIdx);
+  state.tsCanvas.setFrame(state.frameIdx);
+  renderRosterTable();
+}
+
+function renderRosterTable() {
+  if (state.tracks.length === 0) {
+    DOM.mrRosterBody.innerHTML = '<tr><td colspan="12" class="table-empty">No tracking frames found for this play.</td></tr>';
+    return;
+  }
+
+  DOM.mrRosterBody.innerHTML = state.tracks.map((tr) => {
+    const f = tr.frames[Math.min(state.frameIdx, Math.max(0, tr.frames.length - 1))];
+    const liveS = f && f.s != null ? `${f.s.toFixed(2)} yd/s` : '--';
+    const isHi = state.highlightedNflId === tr.nflId;
+    const sideHtml = tr.isOffense
+      ? '<span class="mr-side-pill mr-side-off">OFF</span>'
+      : '<span class="mr-side-pill mr-side-def">DEF</span>';
+
+    return `<tr data-nfl-id="${tr.nflId}" class="${isHi ? 'highlighted-rookie' : ''}">
+      <td><span class="mr-color-swatch" style="background:${tr.color};"></span></td>
+      <td>${sideHtml}</td>
+      <td class="font-mono">${escapeHtml(tr.team || '--')}</td>
+      <td><strong>${escapeHtml(tr.name)}</strong></td>
+      <td class="font-mono">${escapeHtml(tr.pos)}</td>
+      <td class="font-mono">${escapeHtml(tr.align)}</td>
+      <td class="font-mono">${tr.draftYear}</td>
+      <td class="font-mono text-cyan">${liveS}</td>
+      <td class="font-mono">${tr.stats.maxS.toFixed(2)} yd/s</td>
+      <td class="font-mono">${tr.stats.maxA.toFixed(2)} yd/s²</td>
+      <td class="font-mono">${tr.stats.totalDis.toFixed(1)} yd</td>
+      <td class="font-mono text-amber">${tr.stats.peakG.toFixed(2)} g</td>
+    </tr>`;
+  }).join('');
+}
+
+function startPlayback() {
+  if (state.maxFrames <= 1) return;
+  if (state.frameIdx >= state.maxFrames - 1) {
+    state.frameIdx = 0;
+  }
+  state.isPlaying = true;
+  DOM.btnPlayPause.innerHTML = '&#9646;&#9646; Pause';
+  state.lastTickMs = performance.now();
+
+  const step = (now) => {
+    if (!state.isPlaying) return;
+    const intervalMs = 100 / state.playbackSpeed; // 10 Hz base
+    if (now - state.lastTickMs >= intervalMs) {
+      state.lastTickMs = now;
+      if (state.frameIdx < state.maxFrames - 1) {
+        state.frameIdx += 1;
+        updateFrameUI();
+      } else {
+        stopPlayback();
+        return;
+      }
+    }
+    state.rafId = requestAnimationFrame(step);
+  };
+  state.rafId = requestAnimationFrame(step);
+}
+
+function stopPlayback() {
+  state.isPlaying = false;
+  if (state.rafId) {
+    cancelAnimationFrame(state.rafId);
+    state.rafId = null;
+  }
+  if (DOM.btnPlayPause) {
+    DOM.btnPlayPause.innerHTML = '&#9654; Play';
+  }
+}
+
+function bindEvents() {
+  let searchTimer = null;
+
+  DOM.filterMinRookies.addEventListener('change', () => {
+    state.filters.minRookies = Number(DOM.filterMinRookies.value) || 2;
+    applyFiltersAndSort();
+  });
+
+  DOM.filterSeason.addEventListener('change', () => {
+    state.filters.season = DOM.filterSeason.value;
+    refreshGameDropdown();
+    applyFiltersAndSort();
+  });
+
+  DOM.filterPlayType.addEventListener('change', () => {
+    state.filters.playType = DOM.filterPlayType.value;
+    applyFiltersAndSort();
+  });
+
+  DOM.filterMatchup.addEventListener('change', () => {
+    state.filters.matchup = DOM.filterMatchup.value;
+    applyFiltersAndSort();
+  });
+
+  DOM.filterTeam.addEventListener('change', () => {
+    state.filters.team = DOM.filterTeam.value;
+    refreshGameDropdown();
+    applyFiltersAndSort();
+  });
+
+  DOM.filterPosition.addEventListener('change', () => {
+    state.filters.position = DOM.filterPosition.value;
+    applyFiltersAndSort();
+  });
+
+  DOM.filterRookie.addEventListener('change', () => {
+    state.filters.rookieId = DOM.filterRookie.value;
+    applyFiltersAndSort();
+  });
+
+  DOM.filterGame.addEventListener('change', () => {
+    state.filters.gameId = DOM.filterGame.value;
+    applyFiltersAndSort();
+  });
+
+  DOM.filterSearch.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      state.filters.search = DOM.filterSearch.value;
+      applyFiltersAndSort();
+    }, 180);
+  });
+
+  DOM.btnResetFilters.addEventListener('click', () => {
+    state.filters = {
+      minRookies: 2,
+      season: '',
+      playType: '',
+      matchup: '',
+      team: '',
+      position: '',
+      rookieId: '',
+      gameId: '',
+      search: '',
+    };
+    DOM.filterMinRookies.value = '2';
+    DOM.filterSeason.value = '';
+    DOM.filterPlayType.value = '';
+    DOM.filterMatchup.value = '';
+    DOM.filterTeam.value = '';
+    DOM.filterPosition.value = '';
+    DOM.filterRookie.value = '';
+    DOM.filterSearch.value = '';
+    refreshGameDropdown();
+    DOM.filterGame.value = '';
+    applyFiltersAndSort();
+  });
+
+  DOM.pageSizeSelect.addEventListener('change', () => {
+    state.pageSize = Number(DOM.pageSizeSelect.value) || 25;
+    state.page = 1;
+    renderTable();
+  });
+
+  DOM.btnPrevPage.addEventListener('click', () => {
+    if (state.page > 1) {
+      state.page -= 1;
+      renderTable();
+    }
+  });
+
+  DOM.btnNextPage.addEventListener('click', () => {
+    const totalPages = Math.max(1, Math.ceil(state.filteredPlays.length / state.pageSize));
+    if (state.page < totalPages) {
+      state.page += 1;
+      renderTable();
+    }
+  });
+
+  // Sortable headers
+  DOM.mrPlaysTable.querySelectorAll('th.sortable').forEach((th) => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (state.sortCol === col) {
+        state.sortDir = state.sortDir === 'desc' ? 'asc' : 'desc';
+      } else {
+        state.sortCol = col;
+        state.sortDir = 'desc';
+      }
+      applyFiltersAndSort();
+    });
+  });
+
+  // Row click -> load play
+  DOM.mrPlaysBody.addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-gid]');
+    if (!tr) return;
+    const gid = Number(tr.dataset.gid);
+    const pid = Number(tr.dataset.pid);
+    const play = state.filteredPlays.find((p) => p.game_id === gid && p.play_id === pid);
+    if (play) selectPlay(play);
+  });
+
+  // Roster click -> highlight rookie
+  DOM.mrRosterBody.addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-nfl-id]');
+    if (!tr) return;
+    const nflId = Number(tr.dataset.nflId);
+    state.highlightedNflId = state.highlightedNflId === nflId ? null : nflId;
+    state.fieldCanvas.setHighlighted(state.highlightedNflId);
+    state.tsCanvas.setHighlighted(state.highlightedNflId);
+    renderRosterTable();
+  });
+
+  // Playback controls
+  DOM.btnPlayPause.addEventListener('click', () => {
+    if (state.isPlaying) stopPlayback();
+    else startPlayback();
+  });
+
+  DOM.btnPlayReset.addEventListener('click', () => {
+    stopPlayback();
+    state.frameIdx = 0;
+    updateFrameUI();
+  });
+
+  DOM.btnStepBack.addEventListener('click', () => {
+    stopPlayback();
+    state.frameIdx = Math.max(0, state.frameIdx - 1);
+    updateFrameUI();
+  });
+
+  DOM.btnStepFwd.addEventListener('click', () => {
+    stopPlayback();
+    state.frameIdx = Math.min(Math.max(0, state.maxFrames - 1), state.frameIdx + 1);
+    updateFrameUI();
+  });
+
+  DOM.playbackScrubber.addEventListener('input', () => {
+    stopPlayback();
+    state.frameIdx = Number(DOM.playbackScrubber.value) || 0;
+    updateFrameUI();
+  });
+
+  DOM.playbackSpeedSelect.addEventListener('change', () => {
+    state.playbackSpeed = Number(DOM.playbackSpeedSelect.value) || 1.0;
+  });
+
+  DOM.btnZoomAuto.addEventListener('click', () => {
+    DOM.btnZoomAuto.classList.add('active');
+    DOM.btnZoomFull.classList.remove('active');
+    state.fieldCanvas.setZoomMode('auto');
+  });
+
+  DOM.btnZoomFull.addEventListener('click', () => {
+    DOM.btnZoomFull.classList.add('active');
+    DOM.btnZoomAuto.classList.remove('active');
+    state.fieldCanvas.setZoomMode('full');
+  });
+}
+
+async function init() {
+  cacheDOM();
+  state.fieldCanvas = new MultiRookieFieldCanvas(DOM.multiFieldCanvas);
+  state.tsCanvas = new MultiRookieTimeseriesCanvas(DOM.multiTimeseriesCanvas);
+  bindEvents();
+
+  try {
+    DOM.loadingStatusText.textContent = 'Downloading & decoding multi-rookie plays (ZSTD Parquet)...';
+    const [rawPlays, playersArr, gamesObj] = await Promise.all([
+      fetchParquetCached('multi_rookie_plays.parquet'),
+      fetch(`${STATIC_BASE}/players.json`).then((r) => r.json()),
+      fetch(`${STATIC_BASE}/games.json`).then((r) => r.json()),
+    ]);
+
+    for (const p of playersArr) {
+      state.playersById.set(Number(p.nfl_id), p);
+    }
+    for (const [gid, g] of Object.entries(gamesObj)) {
+      state.gamesById.set(Number(gid), g);
+    }
+
+    let maxRookies = 0;
+    state.allPlays = rawPlays.map((r) => {
+      const n = Number(r.n_rookies);
+      if (n > maxRookies) maxRookies = n;
+      return {
+        ...r,
+        game_id: Number(r.game_id),
+        play_id: Number(r.play_id),
+        season: Number(r.season),
+        week: Number(r.week),
+        quarter: r.quarter != null ? Number(r.quarter) : null,
+        down: r.down != null ? Number(r.down) : null,
+        yards_to_go: r.yards_to_go != null ? Number(r.yards_to_go) : null,
+        yardline_number: r.yardline_number != null ? Number(r.yardline_number) : null,
+        expected_points_added: r.expected_points_added != null ? Number(r.expected_points_added) : null,
+        yards_gained: r.yards_gained != null ? Number(r.yards_gained) : null,
+        n_rookies: n,
+        n_teams: Number(r.n_teams),
+      };
+    });
+
+    DOM.statTotalCount.textContent = state.allPlays.length.toLocaleString();
+    DOM.statMaxRookies.textContent = String(maxRookies);
+
+    populateFilterOptions();
+    applyFiltersAndSort();
+
+    DOM.loadingBanner.style.display = 'none';
+
+    // Auto-load the top play so the field is immediately alive
+    if (state.filteredPlays.length > 0) {
+      await selectPlay(state.filteredPlays[0]);
+    }
+  } catch (err) {
+    console.error('Failed to initialize Multi-Rookie Lab:', err);
+    DOM.loadingStatusText.textContent = `Error loading data: ${err.message}`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);

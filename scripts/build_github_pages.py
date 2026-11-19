@@ -114,9 +114,104 @@ def copy_static_assets() -> None:
     print("-> Copying frontend HTML, CSS, JavaScript modules, and vendor bundles...")
     for html_file in STATIC_SRC.glob("*.html"):
         shutil.copy2(html_file, DOCS_DIR / html_file.name)
-    shutil.copy2(STATIC_SRC / "css" / "styles.css", DOCS_DIR / "css" / "styles.css")
+    for css_file in (STATIC_SRC / "css").glob("*.css"):
+        shutil.copy2(css_file, DOCS_DIR / "css" / css_file.name)
     shutil.copytree(STATIC_SRC / "js", DOCS_DIR / "js", dirs_exist_ok=True)
     (DOCS_DIR / ".nojekyll").write_text("", encoding="utf-8")
+
+
+def export_multi_rookie_plays(data_dir: Path) -> Path:
+    """Export all plays with >= 2 cohort rookies into docs/data/multi_rookie_plays.parquet."""
+    print("-> Exporting multi_rookie_plays.parquet (>= 2 cohort rookies per play)...")
+    t0 = time.time()
+    pp = pl.scan_parquet(PROJECT_ROOT / "player_play.parquet")
+    p = pl.scan_parquet(PROJECT_ROOT / "players.parquet").select(
+        ["nfl_id", "display_name", "nfl_position", "draft_year"]
+    )
+    g = pl.scan_parquet(PROJECT_ROOT / "games.parquet").select(
+        ["game_id", "season", "week", "home_team_abbr", "visitor_team_abbr"]
+    )
+
+    df = (
+        pp.select([
+            "game_id",
+            "play_id",
+            "nfl_id",
+            "team_abbr",
+            "lined_up_position",
+            "quarter",
+            "down",
+            "yards_to_go",
+            "possession_team",
+            "yardline_side",
+            "yardline_number",
+            "game_clock",
+            "play_direction",
+            "expected_points_added",
+            "pass_result",
+            "run",
+            "yards_gained",
+            "offense_formation",
+            "team_coverage_man_zone",
+            "play_description",
+        ])
+        .join(p, on="nfl_id", how="inner")
+        .with_columns(pl.len().over(["game_id", "play_id"]).alias("n_rookies"))
+        .filter(pl.col("n_rookies") >= 2)
+        .join(g, on="game_id", how="left")
+        .with_columns(
+            pl.when(pl.col("run").fill_null(False))
+            .then(pl.lit("RUN"))
+            .otherwise(pl.lit("PASS"))
+            .alias("play_type")
+        )
+        .sort(["game_id", "play_id", "team_abbr", "nfl_id"])
+        .group_by(["game_id", "play_id"], maintain_order=True)
+        .agg([
+            pl.first("season").cast(pl.Int16),
+            pl.first("week").cast(pl.Int8),
+            pl.first("home_team_abbr"),
+            pl.first("visitor_team_abbr"),
+            pl.first("possession_team"),
+            pl.first("quarter").cast(pl.Int8),
+            pl.first("down").cast(pl.Int8),
+            pl.first("yards_to_go").cast(pl.Int16),
+            pl.first("game_clock"),
+            pl.first("yardline_side"),
+            pl.first("yardline_number").cast(pl.Int16),
+            pl.first("play_direction"),
+            pl.first("play_type"),
+            pl.first("expected_points_added").cast(pl.Float32),
+            pl.first("yards_gained").cast(pl.Float32),
+            pl.first("pass_result"),
+            pl.first("offense_formation"),
+            pl.first("team_coverage_man_zone"),
+            pl.first("play_description"),
+            pl.len().cast(pl.UInt8).alias("n_rookies"),
+            pl.col("team_abbr").n_unique().cast(pl.UInt8).alias("n_teams"),
+            pl.col("nfl_id").cast(pl.Utf8).str.join(",").alias("rookie_ids"),
+            (
+                pl.col("display_name")
+                + pl.lit(" (")
+                + pl.col("nfl_position")
+                + pl.lit("•")
+                + pl.col("team_abbr")
+                + pl.lit(")")
+            )
+            .str.join(", ")
+            .alias("rookie_summary"),
+            pl.col("nfl_position").unique().sort().str.join(",").alias("rookie_positions"),
+            pl.col("team_abbr").unique().sort().str.join(",").alias("rookie_teams"),
+            pl.col("lined_up_position").fill_null("").str.join(",").alias("rookie_alignments"),
+        ])
+        .collect()
+    )
+
+    out_path = data_dir / "multi_rookie_plays.parquet"
+    df.write_parquet(out_path, compression="zstd", compression_level=9)
+    size_mb = out_path.stat().st_size / (1024 * 1024)
+    print(f"   Saved {len(df):,} multi-rookie plays to {out_path} ({size_mb:.2f} MB in {time.time() - t0:.2f}s)")
+    return out_path
 
 
 def main() -> None:
@@ -126,6 +221,11 @@ def main() -> None:
         action="store_true",
         help="Sync HTML/CSS/JS static assets to docs/ without regenerating data/ or parquets.",
     )
+    parser.add_argument(
+        "--multi-rookie-only",
+        action="store_true",
+        help="Sync static assets and regenerate docs/data/multi_rookie_plays.parquet without rebuilding all 510 player parquets.",
+    )
     args = parser.parse_args()
 
     t_start = time.time()
@@ -133,6 +233,15 @@ def main() -> None:
         print("=== SYNCING STATIC FRONTEND ASSETS TO docs/ (--assets-only) ===")
         copy_static_assets()
         print(f"-> Static asset sync complete in {time.time() - t_start:.2f}s")
+        return
+
+    if args.multi_rookie_only:
+        print("=== SYNCING ASSETS & EXPORTING MULTI-ROOKIE PLAYS (--multi-rookie-only) ===")
+        copy_static_assets()
+        data_dir = DOCS_DIR / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        export_multi_rookie_plays(data_dir)
+        print(f"-> Multi-rookie build complete in {time.time() - t_start:.2f}s")
         return
 
     print("=== BUILDING GITHUB PAGES DEPLOYMENT BUNDLE (docs/) ===")
@@ -193,6 +302,8 @@ def main() -> None:
         encoding="utf-8",
     )
     print(f"   Saved {len(games_map)} games in data/games.json")
+
+    export_multi_rookie_plays(data_dir)
 
     # 5. Export lightweight JSONs + slimmed ZSTD Parquets for ALL 510 players
     print(f"-> Exporting summaries, metadata, and ZSTD Parquet telemetry for all {len(players)} players...")
