@@ -8,7 +8,7 @@ import {
   MultiRookieFieldCanvas,
   MultiRookieTimeseriesCanvas,
   ROOKIE_PALETTE,
-} from './multi_rookie_field.js?v=8';
+} from './multi_rookie_field.js?v=9';
 
 const STATIC_BASE = './data';
 const DATA_VERSION = 'v5';
@@ -104,7 +104,7 @@ function cacheDOM() {
     'btnPlayPause', 'btnPlayReset', 'btnStepBack', 'btnStepFwd',
     'playbackSpeedSelect', 'playbackTimeLabel', 'playbackScrubber',
     'playbackEventBadge', 'btnZoomAuto', 'btnZoomFull', 'eventTimelineStrip',
-    'btnFieldZoomIn', 'btnFieldZoomOut', 'btnFieldZoomReset',
+    'btnFieldZoomIn', 'btnFieldZoomOut', 'btnFieldZoomReset', 'btnFieldRotate',
     'multiFieldCanvas', 'multiTimeseriesCanvas', 'fieldLoadingOverlay',
     'fieldLoadingText', 'mrRosterBody', 'chkAllLabels',
   ];
@@ -964,6 +964,10 @@ function bindEvents() {
   DOM.btnFieldZoomIn.addEventListener('click', () => state.fieldCanvas.zoomIn());
   DOM.btnFieldZoomOut.addEventListener('click', () => state.fieldCanvas.zoomOut());
   DOM.btnFieldZoomReset.addEventListener('click', () => state.fieldCanvas.resetZoom());
+  DOM.btnFieldRotate?.addEventListener('click', () => {
+    const isRot = state.fieldCanvas.toggleRotate();
+    DOM.btnFieldRotate.classList.toggle('active', isRot);
+  });
 
   const headerEl = document.querySelector('.mr-header');
   const setHeaderHidden = (hidden) => {

@@ -30,6 +30,7 @@ export class MultiRookieFieldCanvas {
     this.interactionPairs = []; // Pre-resolved O(1) indices: [{ type, offIdx, defIdx, label, color }]
     this.frameIdx = 0;
     this.zoomMode = 'auto'; // 'auto' | 'full'
+    this.rotated = false; // false = horizontal (120x53), true = vertical 90° (53x120)
     this.highlightedNflId = null;
     this.visibleLabels = new Set();
 
@@ -111,6 +112,13 @@ export class MultiRookieFieldCanvas {
     this.render();
   }
 
+  toggleRotate() {
+    this.rotated = !this.rotated;
+    this._computeTransform();
+    this.render();
+    return this.rotated;
+  }
+
   _zoomAtCenter(factor) {
     const cx = (this.bounds.xMin + this.bounds.xMax) / 2;
     const cy = (this.bounds.yMin + this.bounds.yMax) / 2;
@@ -184,12 +192,21 @@ export class MultiRookieFieldCanvas {
       const dxYd = dxPx / this.transform.scale;
       const dyYd = dyPx / this.transform.scale;
       const b = this.panStart.bounds;
-      this.bounds = {
-        xMin: b.xMin - dxYd,
-        xMax: b.xMax - dxYd,
-        yMin: b.yMin + dyYd,
-        yMax: b.yMax + dyYd,
-      };
+      if (this.rotated) {
+        this.bounds = {
+          xMin: b.xMin + dyYd,
+          xMax: b.xMax + dyYd,
+          yMin: b.yMin - dxYd,
+          yMax: b.yMax - dxYd,
+        };
+      } else {
+        this.bounds = {
+          xMin: b.xMin - dxYd,
+          xMax: b.xMax - dxYd,
+          yMin: b.yMin + dyYd,
+          yMax: b.yMax + dyYd,
+        };
+      }
       this.isUserTransformed = true;
       this._computeTransform();
       this.render();
@@ -280,9 +297,11 @@ export class MultiRookieFieldCanvas {
     const h = Math.max(100, this.transform.cssHeight - pad * 2);
     const spanX = Math.max(1, this.bounds.xMax - this.bounds.xMin);
     const spanY = Math.max(1, this.bounds.yMax - this.bounds.yMin);
-    const scale = Math.min(w / spanX, h / spanY);
-    const offsetX = pad + (w - spanX * scale) / 2;
-    const offsetY = pad + (h - spanY * scale) / 2;
+    const spanH = this.rotated ? spanY : spanX;
+    const spanV = this.rotated ? spanX : spanY;
+    const scale = Math.min(w / spanH, h / spanV);
+    const offsetX = pad + (w - spanH * scale) / 2;
+    const offsetY = pad + (h - spanV * scale) / 2;
     this.transform.scale = scale;
     this.transform.offsetX = offsetX;
     this.transform.offsetY = offsetY;
@@ -290,6 +309,11 @@ export class MultiRookieFieldCanvas {
 
   _toCanvas(x, y) {
     const { scale, offsetX, offsetY, cssHeight } = this.transform;
+    if (this.rotated) {
+      const cx = offsetX + (y - this.bounds.yMin) * scale;
+      const cy = cssHeight - offsetY - (x - this.bounds.xMin) * scale;
+      return [cx, cy];
+    }
     const cx = offsetX + (x - this.bounds.xMin) * scale;
     const cy = cssHeight - offsetY - (y - this.bounds.yMin) * scale;
     return [cx, cy];
@@ -297,6 +321,11 @@ export class MultiRookieFieldCanvas {
 
   _pixelToYard(px, py) {
     const { scale, offsetX, offsetY, cssHeight } = this.transform;
+    if (this.rotated) {
+      const y = this.bounds.yMin + (px - offsetX) / scale;
+      const x = this.bounds.xMin + (cssHeight - offsetY - py) / scale;
+      return [x, y];
+    }
     const x = this.bounds.xMin + (px - offsetX) / scale;
     const y = this.bounds.yMin + (cssHeight - offsetY - py) / scale;
     return [x, y];
@@ -429,7 +458,7 @@ export class MultiRookieFieldCanvas {
 
       // Velocity / direction arrow
       if (f.dir != null && f.s != null && f.s > 0.3) {
-        const rad = ((90 - f.dir) * Math.PI) / 180;
+        const rad = ((90 - f.dir) * Math.PI) / 180 + (this.rotated ? Math.PI / 2 : 0);
         const arrowLen = Math.min(36, 8 + f.s * 2.6);
         const ax = cx + Math.cos(rad) * arrowLen;
         const ay = cy - Math.sin(rad) * arrowLen;
@@ -531,20 +560,34 @@ export class MultiRookieFieldCanvas {
   _drawFieldLines(ctx) {
     const [x0, yTop] = this._toCanvas(0, FIELD_WIDTH);
     const [x120, yBot] = this._toCanvas(FIELD_LENGTH, 0);
+    const left = Math.min(x0, x120);
+    const top = Math.min(yTop, yBot);
+    const fw = Math.abs(x120 - x0);
+    const fh = Math.abs(yBot - yTop);
 
     ctx.fillStyle = '#112233';
-    ctx.fillRect(x0, yTop, x120 - x0, yBot - yTop);
+    ctx.fillRect(left, top, fw, fh);
 
-    const [x10] = this._toCanvas(10, 0);
-    const [x110] = this._toCanvas(110, 0);
+    // Endzones (0..10 and 110..120)
+    const [ex10, ey10] = this._toCanvas(10, 0);
+    const [ex110, ey110] = this._toCanvas(110, FIELD_WIDTH);
     ctx.fillStyle = 'rgba(30, 41, 59, 0.75)';
-    ctx.fillRect(x0, yTop, x10 - x0, yBot - yTop);
-    ctx.fillRect(x110, yTop, x120 - x110, yBot - yTop);
+    if (this.rotated) {
+      const [ez0x, ez0y] = this._toCanvas(0, 0);
+      const [ez10x, ez10y] = this._toCanvas(10, FIELD_WIDTH);
+      ctx.fillRect(Math.min(ez0x, ez10x), Math.min(ez0y, ez10y), Math.abs(ez10x - ez0x), Math.abs(ez10y - ez0y));
+      const [ez110x, ez110y] = this._toCanvas(110, 0);
+      const [ez120x, ez120y] = this._toCanvas(120, FIELD_WIDTH);
+      ctx.fillRect(Math.min(ez110x, ez120x), Math.min(ez110y, ez120y), Math.abs(ez120x - ez110x), Math.abs(ez120y - ez110y));
+    } else {
+      ctx.fillRect(x0, yTop, ex10 - x0, yBot - yTop);
+      ctx.fillRect(ex110, yTop, x120 - ex110, yBot - yTop);
+    }
 
     // Yard lines every 5 yards
     for (let x = 0; x <= 120; x += 5) {
-      const [cx] = this._toCanvas(x, 0);
-      if (cx < -20 || cx > this.transform.cssWidth + 20) continue;
+      const [lx1, ly1] = this._toCanvas(x, 0);
+      const [lx2, ly2] = this._toCanvas(x, FIELD_WIDTH);
       const isTen = x % 10 === 0;
       ctx.strokeStyle =
         x === 10 || x === 110
@@ -554,8 +597,8 @@ export class MultiRookieFieldCanvas {
             : 'rgba(148, 163, 184, 0.12)';
       ctx.lineWidth = x === 10 || x === 110 ? 2 : 1;
       ctx.beginPath();
-      ctx.moveTo(cx, yTop);
-      ctx.lineTo(cx, yBot);
+      ctx.moveTo(lx1, ly1);
+      ctx.lineTo(lx2, ly2);
       ctx.stroke();
 
       if (isTen && x >= 20 && x <= 100) {
@@ -563,32 +606,42 @@ export class MultiRookieFieldCanvas {
         ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
         ctx.font = '700 11px JetBrains Mono, monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(String(yd), cx, yBot - 8);
-        ctx.fillText(String(yd), cx, yTop + 16);
+        if (this.rotated) {
+          ctx.fillText(String(yd), lx1 + 14, ly1 + 4);
+          ctx.fillText(String(yd), lx2 - 14, ly2 + 4);
+        } else {
+          ctx.fillText(String(yd), lx1, ly1 - 8);
+          ctx.fillText(String(yd), lx2, ly2 + 16);
+        }
       }
     }
 
     // Regulation NFL hashmarks (23.58 yd from sidelines) every 1 yard
-    const [, yHashLow] = this._toCanvas(0, 23.58);
-    const [, yHashHigh] = this._toCanvas(0, FIELD_WIDTH - 23.58);
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 11; x <= 109; x++) {
       if (x % 5 === 0) continue;
-      const [hx] = this._toCanvas(x, 0);
-      if (hx < 0 || hx > this.transform.cssWidth) continue;
-      ctx.moveTo(hx, yHashLow - 3);
-      ctx.lineTo(hx, yHashLow + 3);
-      ctx.moveTo(hx, yHashHigh - 3);
-      ctx.lineTo(hx, yHashHigh + 3);
+      const [hx1, hy1] = this._toCanvas(x, 23.58);
+      const [hx2, hy2] = this._toCanvas(x, FIELD_WIDTH - 23.58);
+      if (this.rotated) {
+        ctx.moveTo(hx1 - 3, hy1);
+        ctx.lineTo(hx1 + 3, hy1);
+        ctx.moveTo(hx2 - 3, hy2);
+        ctx.lineTo(hx2 + 3, hy2);
+      } else {
+        ctx.moveTo(hx1, hy1 - 3);
+        ctx.lineTo(hx1, hy1 + 3);
+        ctx.moveTo(hx2, hy2 - 3);
+        ctx.lineTo(hx2, hy2 + 3);
+      }
     }
     ctx.stroke();
 
     // Sidelines
     ctx.strokeStyle = 'rgba(248, 250, 252, 0.55)';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x0, yTop, x120 - x0, yBot - yTop);
+    ctx.strokeRect(left, top, fw, fh);
   }
 }
 
