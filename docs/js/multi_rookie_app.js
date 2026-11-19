@@ -8,7 +8,7 @@ import {
   MultiRookieFieldCanvas,
   MultiRookieTimeseriesCanvas,
   ROOKIE_PALETTE,
-} from './multi_rookie_field.js?v=5';
+} from './multi_rookie_field.js?v=8';
 
 const STATIC_BASE = './data';
 const DATA_VERSION = 'v5';
@@ -78,6 +78,7 @@ const state = {
   rafId: null,
   lastTickMs: 0,
   highlightedNflId: null,
+  visibleLabels: new Set(),
   fieldCanvas: null,
   tsCanvas: null,
 };
@@ -105,7 +106,7 @@ function cacheDOM() {
     'playbackEventBadge', 'btnZoomAuto', 'btnZoomFull', 'eventTimelineStrip',
     'btnFieldZoomIn', 'btnFieldZoomOut', 'btnFieldZoomReset',
     'multiFieldCanvas', 'multiTimeseriesCanvas', 'fieldLoadingOverlay',
-    'fieldLoadingText', 'mrRosterBody',
+    'fieldLoadingText', 'mrRosterBody', 'chkAllLabels',
   ];
   for (const id of ids) {
     DOM[id] = document.getElementById(id);
@@ -514,6 +515,13 @@ async function selectPlay(play) {
     state.events = events;
     state.frameIdx = 0;
 
+    // Default visible labels to role-players (REC/RUSH/TKL/SACK) to keep the field clean
+    state.visibleLabels = new Set(tracks.filter((t) => t.roles.length > 0).map((t) => t.nflId));
+    state.fieldCanvas.setVisibleLabels(state.visibleLabels);
+    if (DOM.chkAllLabels) {
+      DOM.chkAllLabels.checked = tracks.length > 0 && state.visibleLabels.size === tracks.length;
+    }
+
     // Pre-resolve matched interaction pairs into O(1) track indices
     const idxById = new Map(tracks.map((tr, i) => [tr.nflId, i]));
     const interactionPairs = [];
@@ -608,7 +616,7 @@ function updateFrameUI() {
 
 function renderRosterTable() {
   if (state.tracks.length === 0) {
-    DOM.mrRosterBody.innerHTML = '<tr><td colspan="13" class="table-empty">No tracking frames found for this play.</td></tr>';
+    DOM.mrRosterBody.innerHTML = '<tr><td colspan="14" class="table-empty">No tracking frames found for this play.</td></tr>';
     return;
   }
 
@@ -616,6 +624,7 @@ function renderRosterTable() {
     const f = tr.frames[Math.min(state.frameIdx, Math.max(0, tr.frames.length - 1))];
     const liveS = f && f.s != null ? `${f.s.toFixed(2)} yd/s` : '--';
     const isHi = state.highlightedNflId === tr.nflId;
+    const isLabelOn = state.visibleLabels.has(tr.nflId);
     const sideHtml = tr.isOffense
       ? '<span class="mr-side-pill mr-side-off">OFF</span>'
       : '<span class="mr-side-pill mr-side-def">DEF</span>';
@@ -631,6 +640,7 @@ function renderRosterTable() {
     const roleHtml = roleBadges || '<span style="color:var(--text-muted);">—</span>';
 
     return `<tr data-nfl-id="${tr.nflId}" class="${isHi ? 'highlighted-rookie' : ''}">
+      <td style="text-align:center;"><input type="checkbox" class="mr-label-chk" data-nfl-id="${tr.nflId}" ${isLabelOn ? 'checked' : ''} title="Show/hide name on field"></td>
       <td><span class="mr-color-swatch" style="background:${tr.color};"></span></td>
       <td>${sideHtml}</td>
       <td class="font-mono">${escapeHtml(tr.team || '--')}</td>
@@ -871,8 +881,31 @@ function bindEvents() {
     if (play) selectPlay(play);
   });
 
-  // Roster click -> highlight rookie
+  // Roster label checkboxes & row click -> highlight rookie
+  DOM.chkAllLabels?.addEventListener('change', () => {
+    if (DOM.chkAllLabels.checked) {
+      state.visibleLabels = new Set(state.tracks.map((t) => t.nflId));
+    } else {
+      state.visibleLabels.clear();
+    }
+    state.fieldCanvas.setVisibleLabels(state.visibleLabels);
+    renderRosterTable();
+  });
+
+  DOM.mrRosterBody.addEventListener('change', (e) => {
+    const chk = e.target.closest('.mr-label-chk');
+    if (!chk) return;
+    const nflId = Number(chk.dataset.nflId);
+    if (chk.checked) state.visibleLabels.add(nflId);
+    else state.visibleLabels.delete(nflId);
+    if (DOM.chkAllLabels) {
+      DOM.chkAllLabels.checked = state.tracks.length > 0 && state.visibleLabels.size === state.tracks.length;
+    }
+    state.fieldCanvas.setVisibleLabels(state.visibleLabels);
+  });
+
   DOM.mrRosterBody.addEventListener('click', (e) => {
+    if (e.target.closest('.mr-label-chk')) return;
     const tr = e.target.closest('tr[data-nfl-id]');
     if (!tr) return;
     const nflId = Number(tr.dataset.nflId);

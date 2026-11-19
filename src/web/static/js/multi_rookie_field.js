@@ -31,6 +31,7 @@ export class MultiRookieFieldCanvas {
     this.frameIdx = 0;
     this.zoomMode = 'auto'; // 'auto' | 'full'
     this.highlightedNflId = null;
+    this.visibleLabels = new Set();
 
     this.bounds = { xMin: 0, xMax: FIELD_LENGTH, yMin: -1.5, yMax: FIELD_WIDTH + 1.5 };
     this.baseBounds = { ...this.bounds };
@@ -212,6 +213,11 @@ export class MultiRookieFieldCanvas {
 
   setHighlighted(nflId) {
     this.highlightedNflId = nflId;
+    this.render();
+  }
+
+  setVisibleLabels(nflIdSet) {
+    this.visibleLabels = nflIdSet instanceof Set ? nflIdSet : new Set(nflIdSet || []);
     this.render();
   }
 
@@ -401,8 +407,15 @@ export class MultiRookieFieldCanvas {
       ctx.restore();
     }
 
-    // Player markers, role halos & labels
-    for (const tr of this.tracks) {
+    // Player markers, role halos & offset callout labels
+    const LABEL_OFFSETS = [
+      [26, -24],
+      [-26, -24],
+      [26, 24],
+      [-26, 24],
+    ];
+    for (let trIdx = 0; trIdx < this.tracks.length; trIdx++) {
+      const tr = this.tracks[trIdx];
       if (tr.frames.length === 0) continue;
       const f = tr.frames[Math.min(this.frameIdx, tr.frames.length - 1)];
       if (!f || f.x == null || f.y == null) continue;
@@ -475,26 +488,39 @@ export class MultiRookieFieldCanvas {
       ctx.strokeStyle = '#ffffff';
       ctx.stroke();
 
-      // Role icon prefix + label
-      let icon = '';
-      if (roles.includes('SACK')) icon = '⚡';
-      else if (roles.includes('REC') || roles.includes('RUSH')) icon = '🏈';
-      else if (roles.includes('TGT')) icon = '🎯';
-      else if (roles.includes('TKL')) icon = '💥';
+      // Offset callout label with thin leader line (only if checked or highlighted)
+      if (this.visibleLabels.has(tr.nflId) || isHighlighted) {
+        let icon = '';
+        if (roles.includes('SACK')) icon = '⚡';
+        else if (roles.includes('REC') || roles.includes('RUSH')) icon = '🏈';
+        else if (roles.includes('TGT')) icon = '🎯';
+        else if (roles.includes('TKL')) icon = '💥';
 
-      const lastName = (tr.name || '').split(' ').slice(-1)[0] || String(tr.nflId);
-      const speedTxt = f.s != null ? ` ${f.s.toFixed(1)}` : '';
-      const label = `${icon ? icon + ' ' : ''}${lastName} (${tr.pos})${speedTxt}`;
-      ctx.font = `${isHighlighted || roles.length ? '700' : '600'} 11px Inter, sans-serif`;
-      const tw = ctx.measureText(label).width;
-      const lx = cx + 11;
-      const ly = cy - 6;
+        const lastName = (tr.name || '').split(' ').slice(-1)[0] || String(tr.nflId);
+        const speedTxt = f.s != null ? ` ${f.s.toFixed(1)}` : '';
+        const label = `${icon ? icon + ' ' : ''}${lastName} (${tr.pos})${speedTxt}`;
+        ctx.font = `${isHighlighted || roles.length ? '700' : '600'} 10.5px Inter, sans-serif`;
+        const tw = ctx.measureText(label).width;
+        const [ox, oy] = LABEL_OFFSETS[trIdx % LABEL_OFFSETS.length];
+        const alignLeft = ox >= 0;
+        const lx = cx + ox;
+        const ly = cy + oy;
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-      ctx.fillRect(lx - 3, ly - 10, tw + 6, 14);
-      ctx.fillStyle = isHighlighted || roles.length ? '#ffffff' : '#e2e8f0';
-      ctx.textAlign = 'left';
-      ctx.fillText(label, lx, ly + 1);
+        // Subtle leader line
+        ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(lx, ly);
+        ctx.stroke();
+
+        const boxX = alignLeft ? lx : lx - tw - 6;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fillRect(boxX, ly - 10, tw + 6, 14);
+        ctx.fillStyle = isHighlighted || roles.length ? '#ffffff' : '#e2e8f0';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, boxX + 3, ly + 1);
+      }
 
       ctx.restore();
     }
@@ -592,6 +618,11 @@ export class MultiRookieTimeseriesCanvas {
 
   setHighlighted(nflId) {
     this.highlightedNflId = nflId;
+    this.render();
+  }
+
+  setVisibleLabels(nflIdSet) {
+    this.visibleLabels = nflIdSet instanceof Set ? nflIdSet : new Set(nflIdSet || []);
     this.render();
   }
 
