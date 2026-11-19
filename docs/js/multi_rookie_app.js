@@ -281,14 +281,21 @@ function renderTable() {
     const epaCls = (p.expected_points_added ?? 0) >= 0 ? 'text-emerald' : 'text-rose';
     const highCls = p.n_rookies >= 5 ? 'high' : '';
     const badges = [];
+    const anyFilter = f.assignEnabled || f.trenchEnabled || f.mirrorEnabled;
     if (p.assign_min_dy != null && p.assign_min_dy <= f.assignMaxDy) {
-      badges.push(`<span class="mr-int-badge assign" title="Pre-snap Δy=${p.assign_min_dy.toFixed(1)} yd">ASSIGN</span>`);
+      const cls = f.assignEnabled ? 'is-matched-filter' : (anyFilter ? 'is-passive' : '');
+      const prefix = f.assignEnabled ? '&#10003; ' : '';
+      badges.push(`<span class="mr-int-badge assign ${cls}" title="Pre-snap Δy=${p.assign_min_dy.toFixed(1)} yd">${prefix}ASSIGN</span>`);
     }
     if (p.trench_comove_frames >= f.trenchMinFrames) {
-      badges.push(`<span class="mr-int-badge trench" title="Trench co-move ${(p.trench_comove_frames * 0.1).toFixed(1)}s">TRENCH</span>`);
+      const cls = f.trenchEnabled ? 'is-matched-filter' : (anyFilter ? 'is-passive' : '');
+      const prefix = f.trenchEnabled ? '&#10003; ' : '';
+      badges.push(`<span class="mr-int-badge trench ${cls}" title="Trench co-move ${(p.trench_comove_frames * 0.1).toFixed(1)}s">${prefix}TRENCH</span>`);
     }
     if (p.mirror_frames >= f.mirrorMinFrames) {
-      badges.push(`<span class="mr-int-badge mirror" title="Coverage mirror ${(p.mirror_frames * 0.1).toFixed(1)}s">MIRROR</span>`);
+      const cls = f.mirrorEnabled ? 'is-matched-filter' : (anyFilter ? 'is-passive' : '');
+      const prefix = f.mirrorEnabled ? '&#10003; ' : '';
+      badges.push(`<span class="mr-int-badge mirror ${cls}" title="Coverage mirror ${(p.mirror_frames * 0.1).toFixed(1)}s">${prefix}MIRROR</span>`);
     }
     const badgesHtml = badges.length > 0 ? `<div class="mr-int-badges-cell">${badges.join('')}</div>` : '<span style="color:var(--text-muted);">—</span>';
 
