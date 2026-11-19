@@ -33,6 +33,13 @@ const state = {
     rookieId: '',
     gameId: '',
     search: '',
+    assignEnabled: false,
+    assignMaxDy: 2.5,
+    trenchEnabled: false,
+    trenchMinFrames: 15,
+    mirrorEnabled: false,
+    mirrorMinFrames: 15,
+    interactionLogic: 'AND',
   },
   selectedPlay: null,
   tracks: [],
@@ -56,11 +63,13 @@ function cacheDOM() {
     'statFilteredCount', 'statTotalCount', 'statMaxRookies',
     'filterMinRookies', 'filterSeason', 'filterPlayType', 'filterMatchup',
     'filterTeam', 'filterPosition', 'filterRookie', 'filterGame', 'filterSearch',
+    'btnFilterAssign', 'assignDySelect', 'btnFilterTrench', 'trenchSecSelect',
+    'btnFilterMirror', 'mirrorSecSelect', 'btnLogicAnd', 'btnLogicOr',
     'btnResetFilters', 'tableSubtitle', 'pageSizeSelect', 'btnPrevPage',
     'btnNextPage', 'pageInfoText', 'mrPlaysTable', 'mrPlaysBody',
     'stageMatchupBadge', 'stageSituationBadge', 'stageTypeBadge',
     'stageFormationBadge', 'stageCoverageBadge', 'stageEpaPill',
-    'stageEpaVal', 'stageYdsVal', 'stageRookieCountVal', 'stageDescription',
+    'stageEpaVal', 'stageYdsVal', 'stageRookieCountVal', 'stageDescription', 'stageInteractionPills',
     'btnPlayPause', 'btnPlayReset', 'btnStepBack', 'btnStepFwd',
     'playbackSpeedSelect', 'playbackTimeLabel', 'playbackScrubber',
     'playbackEventBadge', 'btnZoomAuto', 'btnZoomFull',
@@ -182,6 +191,8 @@ function applyFiltersAndSort() {
   const posToken = f.position ? `,${f.position},` : '';
   const teamToken = f.team ? `,${f.team},` : '';
 
+  const hasInteractionFilter = f.assignEnabled || f.trenchEnabled || f.mirrorEnabled;
+
   const filtered = [];
   for (const p of state.allPlays) {
     if (p.n_rookies < f.minRookies) continue;
@@ -196,6 +207,24 @@ function applyFiltersAndSort() {
     if (searchLower) {
       const hay = `${p.play_description || ''} ${p.rookie_summary || ''}`.toLowerCase();
       if (!hay.includes(searchLower)) continue;
+    }
+
+    if (hasInteractionFilter) {
+      const matchAssign = p.assign_min_dy != null && p.assign_min_dy <= f.assignMaxDy;
+      const matchTrench = p.trench_comove_frames >= f.trenchMinFrames;
+      const matchMirror = p.mirror_frames >= f.mirrorMinFrames;
+
+      if (f.interactionLogic === 'AND') {
+        if (f.assignEnabled && !matchAssign) continue;
+        if (f.trenchEnabled && !matchTrench) continue;
+        if (f.mirrorEnabled && !matchMirror) continue;
+      } else {
+        const anyMatch =
+          (f.assignEnabled && matchAssign) ||
+          (f.trenchEnabled && matchTrench) ||
+          (f.mirrorEnabled && matchMirror);
+        if (!anyMatch) continue;
+      }
     }
     filtered.push(p);
   }
@@ -234,16 +263,35 @@ function renderTable() {
       : `Showing ${(start + 1).toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()} matching plays`;
 
   if (slice.length === 0) {
-    DOM.mrPlaysBody.innerHTML = '<tr><td colspan="10" class="table-empty">No plays match your filters.</td></tr>';
+    const f = state.filters;
+    const activeCount = (f.assignEnabled ? 1 : 0) + (f.trenchEnabled ? 1 : 0) + (f.mirrorEnabled ? 1 : 0);
+    const msg =
+      activeCount >= 2 && f.interactionLogic === 'AND'
+        ? 'No plays match all selected interaction filters. Try switching to OR mode or unchecking a filter.'
+        : 'No plays match your filters.';
+    DOM.mrPlaysBody.innerHTML = `<tr><td colspan="11" class="table-empty">${msg}</td></tr>`;
     return;
   }
 
+  const f = state.filters;
   const selKey = state.selectedPlay ? `${state.selectedPlay.game_id}_${state.selectedPlay.play_id}` : '';
   const rowsHtml = slice.map((p) => {
     const key = `${p.game_id}_${p.play_id}`;
     const isSel = key === selKey;
     const epaCls = (p.expected_points_added ?? 0) >= 0 ? 'text-emerald' : 'text-rose';
     const highCls = p.n_rookies >= 5 ? 'high' : '';
+    const badges = [];
+    if (p.assign_min_dy != null && p.assign_min_dy <= f.assignMaxDy) {
+      badges.push(`<span class="mr-int-badge assign" title="Pre-snap Δy=${p.assign_min_dy.toFixed(1)} yd">ASSIGN</span>`);
+    }
+    if (p.trench_comove_frames >= f.trenchMinFrames) {
+      badges.push(`<span class="mr-int-badge trench" title="Trench co-move ${(p.trench_comove_frames * 0.1).toFixed(1)}s">TRENCH</span>`);
+    }
+    if (p.mirror_frames >= f.mirrorMinFrames) {
+      badges.push(`<span class="mr-int-badge mirror" title="Coverage mirror ${(p.mirror_frames * 0.1).toFixed(1)}s">MIRROR</span>`);
+    }
+    const badgesHtml = badges.length > 0 ? `<div class="mr-int-badges-cell">${badges.join('')}</div>` : '<span style="color:var(--text-muted);">—</span>';
+
     return `<tr data-gid="${p.game_id}" data-pid="${p.play_id}" class="${isSel ? 'selected-row' : ''}">
       <td class="font-mono">${p.season} W${p.week}</td>
       <td class="font-mono">${escapeHtml(p.visitor_team_abbr)}@${escapeHtml(p.home_team_abbr)}</td>
@@ -251,6 +299,7 @@ function renderTable() {
       <td class="font-mono">${formatDownDist(p.down, p.yards_to_go)}</td>
       <td><span class="badge badge-play-type">${escapeHtml(p.play_type)}</span></td>
       <td><span class="mr-rookie-count-badge ${highCls}">${p.n_rookies}</span></td>
+      <td>${badgesHtml}</td>
       <td class="mr-rookies-cell" title="${escapeHtml(p.rookie_summary)}">${escapeHtml(p.rookie_summary)}</td>
       <td class="font-mono ${epaCls}">${formatEpa(p.expected_points_added)}</td>
       <td class="font-mono">${p.yards_gained != null ? Math.round(p.yards_gained) : '--'}</td>
@@ -375,7 +424,46 @@ async function selectPlay(play) {
     state.events = events;
     state.frameIdx = 0;
 
-    state.fieldCanvas.setTracks(tracks);
+    // Pre-resolve matched interaction pairs into O(1) track indices
+    const idxById = new Map(tracks.map((tr, i) => [tr.nflId, i]));
+    const interactionPairs = [];
+    const stagePills = [];
+    const f = state.filters;
+
+    if (play.assign_off_id && play.assign_def_id && play.assign_min_dy != null && play.assign_min_dy <= f.assignMaxDy) {
+      const offIdx = idxById.get(play.assign_off_id);
+      const defIdx = idxById.get(play.assign_def_id);
+      if (offIdx != null && defIdx != null) {
+        interactionPairs.push({ type: 'assign', offIdx, defIdx, label: 'ASSIGN', color: '#06b6d4' });
+        stagePills.push(`<span class="mr-int-badge assign">&#127919; Assignment: &Delta;y=${play.assign_min_dy.toFixed(1)} yd (${tracks[offIdx].name.split(' ').slice(-1)[0]} vs ${tracks[defIdx].name.split(' ').slice(-1)[0]})</span>`);
+      }
+    }
+    if (play.trench_off_id && play.trench_def_id && play.trench_comove_frames >= f.trenchMinFrames) {
+      const offIdx = idxById.get(play.trench_off_id);
+      const defIdx = idxById.get(play.trench_def_id);
+      if (offIdx != null && defIdx != null) {
+        interactionPairs.push({ type: 'trench', offIdx, defIdx, label: 'TRENCH', color: '#f59e0b' });
+        stagePills.push(`<span class="mr-int-badge trench">&#128737;&#65039; Trench: ${(play.trench_comove_frames * 0.1).toFixed(1)}s (${tracks[offIdx].name.split(' ').slice(-1)[0]} vs ${tracks[defIdx].name.split(' ').slice(-1)[0]})</span>`);
+      }
+    }
+    if (play.mirror_off_id && play.mirror_def_id && play.mirror_frames >= f.mirrorMinFrames) {
+      const offIdx = idxById.get(play.mirror_off_id);
+      const defIdx = idxById.get(play.mirror_def_id);
+      if (offIdx != null && defIdx != null) {
+        interactionPairs.push({ type: 'mirror', offIdx, defIdx, label: 'MIRROR', color: '#a78bfa' });
+        const cosStr = play.mirror_mean_cos != null ? `, cos=${play.mirror_mean_cos.toFixed(2)}` : '';
+        stagePills.push(`<span class="mr-int-badge mirror">&#129694; Mirror: ${(play.mirror_frames * 0.1).toFixed(1)}s${cosStr} (${tracks[offIdx].name.split(' ').slice(-1)[0]} vs ${tracks[defIdx].name.split(' ').slice(-1)[0]})</span>`);
+      }
+    }
+
+    if (stagePills.length > 0) {
+      DOM.stageInteractionPills.innerHTML = stagePills.join('');
+      DOM.stageInteractionPills.style.display = 'flex';
+    } else {
+      DOM.stageInteractionPills.style.display = 'none';
+    }
+
+    state.fieldCanvas.setTracks(tracks, interactionPairs);
     state.tsCanvas.setTracks(tracks, maxFrames, events);
 
     DOM.playbackScrubber.min = '0';
@@ -546,6 +634,53 @@ function bindEvents() {
     }, 180);
   });
 
+  DOM.btnFilterAssign.addEventListener('click', () => {
+    state.filters.assignEnabled = !state.filters.assignEnabled;
+    DOM.btnFilterAssign.classList.toggle('active', state.filters.assignEnabled);
+    applyFiltersAndSort();
+  });
+
+  DOM.assignDySelect.addEventListener('change', () => {
+    state.filters.assignMaxDy = Number(DOM.assignDySelect.value) || 2.5;
+    if (state.filters.assignEnabled) applyFiltersAndSort();
+  });
+
+  DOM.btnFilterTrench.addEventListener('click', () => {
+    state.filters.trenchEnabled = !state.filters.trenchEnabled;
+    DOM.btnFilterTrench.classList.toggle('active', state.filters.trenchEnabled);
+    applyFiltersAndSort();
+  });
+
+  DOM.trenchSecSelect.addEventListener('change', () => {
+    state.filters.trenchMinFrames = Number(DOM.trenchSecSelect.value) || 15;
+    if (state.filters.trenchEnabled) applyFiltersAndSort();
+  });
+
+  DOM.btnFilterMirror.addEventListener('click', () => {
+    state.filters.mirrorEnabled = !state.filters.mirrorEnabled;
+    DOM.btnFilterMirror.classList.toggle('active', state.filters.mirrorEnabled);
+    applyFiltersAndSort();
+  });
+
+  DOM.mirrorSecSelect.addEventListener('change', () => {
+    state.filters.mirrorMinFrames = Number(DOM.mirrorSecSelect.value) || 15;
+    if (state.filters.mirrorEnabled) applyFiltersAndSort();
+  });
+
+  DOM.btnLogicAnd.addEventListener('click', () => {
+    state.filters.interactionLogic = 'AND';
+    DOM.btnLogicAnd.classList.add('active');
+    DOM.btnLogicOr.classList.remove('active');
+    applyFiltersAndSort();
+  });
+
+  DOM.btnLogicOr.addEventListener('click', () => {
+    state.filters.interactionLogic = 'OR';
+    DOM.btnLogicOr.classList.add('active');
+    DOM.btnLogicAnd.classList.remove('active');
+    applyFiltersAndSort();
+  });
+
   DOM.btnResetFilters.addEventListener('click', () => {
     state.filters = {
       minRookies: 2,
@@ -557,6 +692,13 @@ function bindEvents() {
       rookieId: '',
       gameId: '',
       search: '',
+      assignEnabled: false,
+      assignMaxDy: 2.5,
+      trenchEnabled: false,
+      trenchMinFrames: 15,
+      mirrorEnabled: false,
+      mirrorMinFrames: 15,
+      interactionLogic: 'AND',
     };
     DOM.filterMinRookies.value = '2';
     DOM.filterSeason.value = '';
@@ -566,6 +708,14 @@ function bindEvents() {
     DOM.filterPosition.value = '';
     DOM.filterRookie.value = '';
     DOM.filterSearch.value = '';
+    DOM.btnFilterAssign.classList.remove('active');
+    DOM.assignDySelect.value = '2.5';
+    DOM.btnFilterTrench.classList.remove('active');
+    DOM.trenchSecSelect.value = '15';
+    DOM.btnFilterMirror.classList.remove('active');
+    DOM.mirrorSecSelect.value = '15';
+    DOM.btnLogicAnd.classList.add('active');
+    DOM.btnLogicOr.classList.remove('active');
     refreshGameDropdown();
     DOM.filterGame.value = '';
     applyFiltersAndSort();
@@ -713,6 +863,17 @@ async function init() {
         yards_gained: r.yards_gained != null ? Number(r.yards_gained) : null,
         n_rookies: n,
         n_teams: Number(r.n_teams),
+        assign_min_dy: r.assign_min_dy != null ? Number(r.assign_min_dy) : null,
+        assign_dist: r.assign_dist != null ? Number(r.assign_dist) : null,
+        assign_off_id: r.assign_off_id != null ? Number(r.assign_off_id) : null,
+        assign_def_id: r.assign_def_id != null ? Number(r.assign_def_id) : null,
+        trench_comove_frames: r.trench_comove_frames != null ? Number(r.trench_comove_frames) : 0,
+        trench_off_id: r.trench_off_id != null ? Number(r.trench_off_id) : null,
+        trench_def_id: r.trench_def_id != null ? Number(r.trench_def_id) : null,
+        mirror_frames: r.mirror_frames != null ? Number(r.mirror_frames) : 0,
+        mirror_mean_cos: r.mirror_mean_cos != null ? Number(r.mirror_mean_cos) : null,
+        mirror_off_id: r.mirror_off_id != null ? Number(r.mirror_off_id) : null,
+        mirror_def_id: r.mirror_def_id != null ? Number(r.mirror_def_id) : null,
       };
     });
 

@@ -25,6 +25,7 @@ export class MultiRookieFieldCanvas {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.tracks = []; // Array of { nflId, name, pos, team, isOffense, color, frames }
+    this.interactionPairs = []; // Pre-resolved O(1) indices: [{ type, offIdx, defIdx, label, color }]
     this.frameIdx = 0;
     this.zoomMode = 'auto'; // 'auto' | 'full'
     this.highlightedNflId = null;
@@ -42,8 +43,9 @@ export class MultiRookieFieldCanvas {
     this.render();
   }
 
-  setTracks(tracks) {
+  setTracks(tracks, interactionPairs = []) {
     this.tracks = tracks || [];
+    this.interactionPairs = interactionPairs || [];
     this.frameIdx = 0;
     this._computeBounds();
     this.render();
@@ -176,6 +178,41 @@ export class MultiRookieFieldCanvas {
         }
       }
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw O(1) pre-resolved interaction tether lines between matched rookie pairs
+    for (const pair of this.interactionPairs) {
+      const trOff = this.tracks[pair.offIdx];
+      const trDef = this.tracks[pair.defIdx];
+      if (!trOff || !trDef || trOff.frames.length === 0 || trDef.frames.length === 0) continue;
+      const fOff = trOff.frames[Math.min(this.frameIdx, trOff.frames.length - 1)];
+      const fDef = trDef.frames[Math.min(this.frameIdx, trDef.frames.length - 1)];
+      if (!fOff || !fDef || fOff.x == null || fOff.y == null || fDef.x == null || fDef.y == null) continue;
+
+      const [x1, y1] = this._toCanvas(fOff.x, fOff.y);
+      const [x2, y2] = this._toCanvas(fDef.x, fDef.y);
+      const distYd = Math.hypot(fOff.x - fDef.x, fOff.y - fDef.y);
+
+      ctx.save();
+      ctx.strokeStyle = pair.color || '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      const txt = `${pair.label} ${distYd.toFixed(1)}yd`;
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      const tw = ctx.measureText(txt).width;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.fillRect(mx - tw / 2 - 4, my - 8, tw + 8, 14);
+      ctx.fillStyle = pair.color || '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.fillText(txt, mx, my + 2);
       ctx.restore();
     }
 

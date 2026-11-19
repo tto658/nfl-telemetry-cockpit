@@ -150,6 +150,50 @@
           <button id="btnResetFilters" class="btn btn-sm mr-btn-reset" type="button">Reset</button>
         </div>
       </div>
+
+      <!-- INTERACTION PATTERN FILTERS -->
+      <div class="mr-interaction-bar">
+        <span class="mr-interaction-label">Interaction Filters:</span>
+
+        <div class="mr-int-pill-group">
+          <button id="btnFilterAssign" class="mr-int-pill" type="button" title="WR/TE vs CB/DB/Slot aligned closely in Y before snap">
+            <span>&#127919;</span> WR/TE vs DB Assignment
+          </button>
+          <select id="assignDySelect" class="mr-int-select" title="Max pre-snap lateral Δy">
+            <option value="1.5">&Delta;y &le; 1.5 yd</option>
+            <option value="2.5" selected>&Delta;y &le; 2.5 yd</option>
+            <option value="4.0">&Delta;y &le; 4.0 yd</option>
+          </select>
+        </div>
+
+        <div class="mr-int-pill-group">
+          <button id="btnFilterTrench" class="mr-int-pill" type="button" title="OL (C/G/T/TE) vs DL (DT/EDGE/OLB) sustained co-movement post-snap">
+            <span>&#128737;&#65039;</span> OL vs DL Trench Co-Move
+          </button>
+          <select id="trenchSecSelect" class="mr-int-select" title="Min consecutive co-movement duration">
+            <option value="10">&ge; 1.0s</option>
+            <option value="15" selected>&ge; 1.5s</option>
+            <option value="20">&ge; 2.0s</option>
+            <option value="25">&ge; 2.5s</option>
+          </select>
+        </div>
+
+        <div class="mr-int-pill-group">
+          <button id="btnFilterMirror" class="mr-int-pill" type="button" title="Route runner vs coverage defender tracing similar trajectory">
+            <span>&#129694;</span> Coverage Mirroring
+          </button>
+          <select id="mirrorSecSelect" class="mr-int-select" title="Min consecutive mirroring duration">
+            <option value="10">&ge; 1.0s</option>
+            <option value="15" selected>&ge; 1.5s</option>
+            <option value="20">&ge; 2.0s</option>
+          </select>
+        </div>
+
+        <div class="mr-logic-toggle" title="Combine active interaction filters with AND or OR">
+          <button id="btnLogicAnd" class="mr-logic-btn active" type="button">AND</button>
+          <button id="btnLogicOr" class="mr-logic-btn" type="button">OR</button>
+        </div>
+      </div>
     </section>
 
     <!-- PLAYS TABLE SECTION -->
@@ -182,6 +226,7 @@
               <th>Down &amp; Dist</th>
               <th>Type</th>
               <th class="sortable" data-sort="n_rookies"># Rookies</th>
+              <th>Interactions</th>
               <th>Rookies on Play</th>
               <th class="sortable" data-sort="expected_points_added">EPA</th>
               <th class="sortable" data-sort="yards_gained">Yds</th>
@@ -190,7 +235,7 @@
           </thead>
           <tbody id="mrPlaysBody">
             <tr>
-              <td colspan="10" class="table-empty">Loading multi-rookie plays...</td>
+              <td colspan="11" class="table-empty">Loading multi-rookie plays...</td>
             </tr>
           </tbody>
         </table>
@@ -224,6 +269,7 @@
       </div>
 
       <p id="stageDescription" class="mr-play-desc">Select a play from the table above to inspect multi-rookie trajectories.</p>
+      <div id="stageInteractionPills" class="mr-stage-int-pills" style="display:none;"></div>
 
       <!-- PLAYBACK & VIEW CONTROLS -->
       <div class="mr-playback-bar">

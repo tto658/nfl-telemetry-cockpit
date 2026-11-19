@@ -120,6 +120,258 @@ def copy_static_assets() -> None:
     (DOCS_DIR / ".nojekyll").write_text("", encoding="utf-8")
 
 
+def _compute_season_interactions(season: int, season_pairs: pl.DataFrame) -> pl.DataFrame:
+    """Compute pre-snap assignment, OL/DL trench co-movement, and coverage mirroring for one season."""
+    import math
+
+    empty_schema = {
+        "game_id": pl.Int64,
+        "play_id": pl.Int64,
+        "assign_min_dy": pl.Float32,
+        "assign_dist": pl.Float32,
+        "assign_off_id": pl.Int32,
+        "assign_def_id": pl.Int32,
+        "trench_comove_frames": pl.UInt16,
+        "trench_off_id": pl.Int32,
+        "trench_def_id": pl.Int32,
+        "mirror_frames": pl.UInt16,
+        "mirror_mean_cos": pl.Float32,
+        "mirror_off_id": pl.Int32,
+        "mirror_def_id": pl.Int32,
+    }
+    gt_path = PROJECT_ROOT / f"game_tracking_{season}.parquet"
+    if not gt_path.exists() or len(season_pairs) == 0:
+        return pl.DataFrame(schema=empty_schema)
+
+    wr_db_pairs = season_pairs.filter(
+        pl.col("lined_up_position").is_in(["WR", "SLOT_WR", "TE"])
+        & pl.col("lined_up_position_def").is_in(["CB", "SLOT_CB", "BOX_SAFETY", "HIGH_SAFETY"])
+    ).select(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+
+    ol_dl_pairs = season_pairs.filter(
+        pl.col("lined_up_position").is_in(["C", "G", "T", "EXTRA_OL", "TE"])
+        & pl.col("lined_up_position_def").is_in(["INTERIOR_LINE", "EDGE", "OLB"])
+    ).select(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+
+    cov_pairs = season_pairs.filter(
+        pl.col("route_ran").is_not_null()
+        & pl.col("coverage_assignment_def").is_not_null()
+        & (pl.col("coverage_assignment_def") != "NO_ASSIGNMENT")
+    ).select(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+
+    needed_players = pl.concat([
+        wr_db_pairs.select(["game_id", "play_id", "nfl_id"]),
+        wr_db_pairs.select(["game_id", "play_id", pl.col("nfl_id_def").alias("nfl_id")]),
+        ol_dl_pairs.select(["game_id", "play_id", "nfl_id"]),
+        ol_dl_pairs.select(["game_id", "play_id", pl.col("nfl_id_def").alias("nfl_id")]),
+        cov_pairs.select(["game_id", "play_id", "nfl_id"]),
+        cov_pairs.select(["game_id", "play_id", pl.col("nfl_id_def").alias("nfl_id")]),
+    ]).unique()
+
+    if len(needed_players) == 0:
+        return pl.DataFrame(schema=empty_schema)
+
+    tr = (
+        pl.scan_parquet(gt_path)
+        .select(["game_id", "play_id", "nfl_id", "time", "x", "y", "s", "dir", "event"])
+        .join(needed_players.lazy(), on=["game_id", "play_id", "nfl_id"], how="semi")
+        .collect()
+    )
+
+    snap_times = (
+        tr.filter(pl.col("event") == "ball_snap")
+        .group_by(["game_id", "play_id"])
+        .agg(pl.col("time").min().alias("snap_time"))
+    )
+    tr = tr.join(snap_times, on=["game_id", "play_id"], how="left")
+
+    # Pre-snap position (at ball_snap, or earliest frame if ball_snap missing)
+    snap_pos = (
+        tr.filter(pl.col("snap_time").is_null() | (pl.col("time") == pl.col("snap_time")))
+        .sort("time")
+        .group_by(["game_id", "play_id", "nfl_id"], maintain_order=False)
+        .first()
+        .select(["game_id", "play_id", "nfl_id", "x", "y"])
+    )
+
+    # 1. WR/TE vs DB pre-snap Y-assignment (best pair per play)
+    assign_best = (
+        wr_db_pairs.join(snap_pos, on=["game_id", "play_id", "nfl_id"], how="inner")
+        .join(
+            snap_pos,
+            left_on=["game_id", "play_id", "nfl_id_def"],
+            right_on=["game_id", "play_id", "nfl_id"],
+            how="inner",
+            suffix="_def",
+        )
+        .with_columns([
+            (pl.col("y") - pl.col("y_def")).abs().alias("dy"),
+            ((pl.col("x") - pl.col("x_def")) ** 2 + (pl.col("y") - pl.col("y_def")) ** 2)
+            .sqrt()
+            .alias("dist"),
+        ])
+        .filter(pl.col("dist") <= 10.0)
+        .sort(["game_id", "play_id", "dy", "dist"])
+        .group_by(["game_id", "play_id"], maintain_order=False)
+        .first()
+        .select([
+            "game_id",
+            "play_id",
+            pl.col("dy").cast(pl.Float32).alias("assign_min_dy"),
+            pl.col("dist").cast(pl.Float32).alias("assign_dist"),
+            pl.col("nfl_id").cast(pl.Int32).alias("assign_off_id"),
+            pl.col("nfl_id_def").cast(pl.Int32).alias("assign_def_id"),
+        ])
+    )
+
+    # Pre-snap spatial pruning before post-snap 10 Hz frame joins
+    ol_dl_pruned = (
+        ol_dl_pairs.join(snap_pos, on=["game_id", "play_id", "nfl_id"], how="inner")
+        .join(
+            snap_pos,
+            left_on=["game_id", "play_id", "nfl_id_def"],
+            right_on=["game_id", "play_id", "nfl_id"],
+            how="inner",
+            suffix="_def",
+        )
+        .filter(((pl.col("x") - pl.col("x_def")) ** 2 + (pl.col("y") - pl.col("y_def")) ** 2).sqrt() <= 10.0)
+        .select(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+    )
+
+    cov_pruned = (
+        cov_pairs.join(snap_pos, on=["game_id", "play_id", "nfl_id"], how="inner")
+        .join(
+            snap_pos,
+            left_on=["game_id", "play_id", "nfl_id_def"],
+            right_on=["game_id", "play_id", "nfl_id"],
+            how="inner",
+            suffix="_def",
+        )
+        .filter(((pl.col("x") - pl.col("x_def")) ** 2 + (pl.col("y") - pl.col("y_def")) ** 2).sqrt() <= 15.0)
+        .select(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+    )
+
+    post = tr.filter(pl.col("snap_time").is_null() | (pl.col("time") >= pl.col("snap_time"))).select(
+        ["game_id", "play_id", "nfl_id", "time", "x", "y", "s", "dir"]
+    )
+
+    def _pair_post_frames(pairs_df: pl.DataFrame) -> pl.DataFrame:
+        return (
+            pairs_df.join(post, on=["game_id", "play_id", "nfl_id"], how="inner")
+            .join(
+                post,
+                left_on=["game_id", "play_id", "nfl_id_def", "time"],
+                right_on=["game_id", "play_id", "nfl_id", "time"],
+                how="inner",
+                suffix="_def",
+            )
+            .with_columns([
+                ((pl.col("x") - pl.col("x_def")) ** 2 + (pl.col("y") - pl.col("y_def")) ** 2)
+                .sqrt()
+                .alias("dist"),
+                (pl.col("s") * (pl.col("dir") * math.pi / 180.0).sin()).alias("vx"),
+                (pl.col("s") * (pl.col("dir") * math.pi / 180.0).cos()).alias("vy"),
+                (pl.col("s_def") * (pl.col("dir_def") * math.pi / 180.0).sin()).alias("vx_def"),
+                (pl.col("s_def") * (pl.col("dir_def") * math.pi / 180.0).cos()).alias("vy_def"),
+            ])
+            .with_columns(
+                (
+                    (pl.col("vx") * pl.col("vx_def") + pl.col("vy") * pl.col("vy_def"))
+                    / (pl.col("s") * pl.col("s_def") + 1e-6)
+                ).alias("vel_cos")
+            )
+            .sort(["game_id", "play_id", "nfl_id", "nfl_id_def", "time"])
+        )
+
+    # 2. OL vs DL sustained consecutive co-movement
+    ol_dl_best = (
+        _pair_post_frames(ol_dl_pruned)
+        .with_columns(
+            (
+                (pl.col("dist") <= 2.5)
+                & (pl.col("vel_cos") >= 0.50)
+                & (pl.col("s") >= 0.5)
+                & (pl.col("s_def") >= 0.5)
+            ).alias("valid_frame")
+        )
+        .with_columns(
+            (~pl.col("valid_frame"))
+            .cum_sum()
+            .over(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+            .alias("streak_id")
+        )
+        .filter(pl.col("valid_frame"))
+        .group_by(["game_id", "play_id", "nfl_id", "nfl_id_def", "streak_id"])
+        .agg(pl.len().alias("streak_len"))
+        .group_by(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+        .agg(pl.col("streak_len").max().alias("max_streak"))
+        .sort(["game_id", "play_id", "max_streak"], descending=[False, False, True])
+        .group_by(["game_id", "play_id"], maintain_order=False)
+        .first()
+        .select([
+            "game_id",
+            "play_id",
+            pl.col("max_streak").cast(pl.UInt16).alias("trench_comove_frames"),
+            pl.col("nfl_id").cast(pl.Int32).alias("trench_off_id"),
+            pl.col("nfl_id_def").cast(pl.Int32).alias("trench_def_id"),
+        ])
+    )
+
+    # 3. Coverage mirroring (consecutive streak + mean_vel_cos)
+    cov_frames = (
+        _pair_post_frames(cov_pruned)
+        .with_columns(
+            (
+                (pl.col("vel_cos") >= 0.75)
+                & (pl.col("dist") <= 6.0)
+                & (pl.col("s") >= 1.5)
+                & (pl.col("s_def") >= 1.5)
+            ).alias("valid_frame")
+        )
+        .with_columns(
+            (~pl.col("valid_frame"))
+            .cum_sum()
+            .over(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+            .alias("streak_id")
+        )
+    )
+    cov_best = (
+        cov_frames.filter(pl.col("valid_frame"))
+        .group_by(["game_id", "play_id", "nfl_id", "nfl_id_def", "streak_id"])
+        .agg([
+            pl.len().alias("streak_len"),
+            pl.col("vel_cos").mean().alias("streak_cos"),
+        ])
+        .group_by(["game_id", "play_id", "nfl_id", "nfl_id_def"])
+        .agg([
+            pl.col("streak_len").max().alias("max_streak"),
+            pl.col("streak_cos").mean().alias("mean_cos"),
+        ])
+        .sort(["game_id", "play_id", "max_streak", "mean_cos"], descending=[False, False, True, True])
+        .group_by(["game_id", "play_id"], maintain_order=False)
+        .first()
+        .select([
+            "game_id",
+            "play_id",
+            pl.col("max_streak").cast(pl.UInt16).alias("mirror_frames"),
+            pl.col("mean_cos").cast(pl.Float32).alias("mirror_mean_cos"),
+            pl.col("nfl_id").cast(pl.Int32).alias("mirror_off_id"),
+            pl.col("nfl_id_def").cast(pl.Int32).alias("mirror_def_id"),
+        ])
+    )
+
+    play_keys = season_pairs.select(["game_id", "play_id"]).unique()
+    return (
+        play_keys.join(assign_best, on=["game_id", "play_id"], how="left")
+        .join(ol_dl_best, on=["game_id", "play_id"], how="left")
+        .join(cov_best, on=["game_id", "play_id"], how="left")
+        .with_columns([
+            pl.col("trench_comove_frames").fill_null(0),
+            pl.col("mirror_frames").fill_null(0),
+        ])
+    )
+
+
 def export_multi_rookie_plays(data_dir: Path) -> Path:
     """Export all plays with >= 2 cohort rookies into docs/data/multi_rookie_plays.parquet."""
     print("-> Exporting multi_rookie_plays.parquet (>= 2 cohort rookies per play)...")
@@ -206,6 +458,42 @@ def export_multi_rookie_plays(data_dir: Path) -> Path:
         ])
         .collect()
     )
+
+    # Compute pairwise rookie interaction metrics season-by-season
+    base_h2h = (
+        pp.select([
+            "game_id",
+            "play_id",
+            "nfl_id",
+            "team_abbr",
+            "possession_team",
+            "lined_up_position",
+            "coverage_assignment",
+            "route_ran",
+        ])
+        .join(p.select(["nfl_id"]), on="nfl_id", how="inner")
+        .join(g.select(["game_id", "season"]), on="game_id", how="left")
+        .with_columns(pl.len().over(["game_id", "play_id"]).alias("n_rookies"))
+        .filter(pl.col("n_rookies") >= 2)
+        .with_columns((pl.col("team_abbr") == pl.col("possession_team")).alias("is_off"))
+        .collect()
+    )
+    off_h2h = base_h2h.filter(pl.col("is_off"))
+    def_h2h = base_h2h.filter(~pl.col("is_off"))
+    all_pairs = off_h2h.join(def_h2h, on=["game_id", "play_id", "season"], suffix="_def")
+
+    season_results = []
+    for yr in (2023, 2024, 2025):
+        yr_pairs = all_pairs.filter(pl.col("season") == yr)
+        if len(yr_pairs) > 0:
+            season_results.append(_compute_season_interactions(yr, yr_pairs))
+
+    if season_results:
+        interactions_df = pl.concat(season_results, how="vertical_relaxed")
+        df = df.join(interactions_df, on=["game_id", "play_id"], how="left").with_columns([
+            pl.col("trench_comove_frames").fill_null(0),
+            pl.col("mirror_frames").fill_null(0),
+        ])
 
     out_path = data_dir / "multi_rookie_plays.parquet"
     df.write_parquet(out_path, compression="zstd", compression_level=9)
