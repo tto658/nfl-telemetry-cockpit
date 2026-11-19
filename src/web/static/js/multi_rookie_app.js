@@ -8,9 +8,10 @@ import {
   MultiRookieFieldCanvas,
   MultiRookieTimeseriesCanvas,
   ROOKIE_PALETTE,
-} from './multi_rookie_field.js';
+} from './multi_rookie_field.js?v=4';
 
 const STATIC_BASE = './data';
+const DATA_VERSION = 'v4';
 const MAX_PARQUET_CACHE = 80;
 const parquetCache = new Map();
 
@@ -63,8 +64,10 @@ function cacheDOM() {
     'statFilteredCount', 'statTotalCount', 'statMaxRookies',
     'filterMinRookies', 'filterSeason', 'filterPlayType', 'filterMatchup',
     'filterTeam', 'filterPosition', 'filterRookie', 'filterGame', 'filterSearch',
-    'btnFilterAssign', 'assignDySelect', 'btnFilterTrench', 'trenchSecSelect',
-    'btnFilterMirror', 'mirrorSecSelect', 'btnLogicAnd', 'btnLogicOr',
+    'btnFilterAssign', 'assignDySelect', 'countAssign',
+    'btnFilterTrench', 'trenchSecSelect', 'countTrench',
+    'btnFilterMirror', 'mirrorSecSelect', 'countMirror',
+    'btnLogicAnd', 'btnLogicOr',
     'btnResetFilters', 'tableSubtitle', 'pageSizeSelect', 'btnPrevPage',
     'btnNextPage', 'pageInfoText', 'mrPlaysTable', 'mrPlaysBody',
     'stageMatchupBadge', 'stageSituationBadge', 'stageTypeBadge',
@@ -81,14 +84,14 @@ function cacheDOM() {
   }
 }
 
-async function fetchParquetCached(relPath) {
+async function fetchParquetCached(relPath, fetchOptions = undefined) {
   if (parquetCache.has(relPath)) {
     const val = parquetCache.get(relPath);
     parquetCache.delete(relPath);
     parquetCache.set(relPath, val);
     return val;
   }
-  const res = await fetch(`${STATIC_BASE}/${relPath}`);
+  const res = await fetch(`${STATIC_BASE}/${relPath}`, fetchOptions);
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${relPath}`);
   const ab = await res.arrayBuffer();
   const rows = await parquetReadObjects({ file: ab, compressors });
@@ -193,6 +196,9 @@ function applyFiltersAndSort() {
 
   const hasInteractionFilter = f.assignEnabled || f.trenchEnabled || f.mirrorEnabled;
 
+  let cntAssign = 0;
+  let cntTrench = 0;
+  let cntMirror = 0;
   const filtered = [];
   for (const p of state.allPlays) {
     if (p.n_rookies < f.minRookies) continue;
@@ -209,11 +215,14 @@ function applyFiltersAndSort() {
       if (!hay.includes(searchLower)) continue;
     }
 
-    if (hasInteractionFilter) {
-      const matchAssign = p.assign_min_dy != null && p.assign_min_dy <= f.assignMaxDy;
-      const matchTrench = p.trench_comove_frames >= f.trenchMinFrames;
-      const matchMirror = p.mirror_frames >= f.mirrorMinFrames;
+    const matchAssign = p.assign_min_dy != null && p.assign_min_dy <= f.assignMaxDy;
+    const matchTrench = p.trench_comove_frames >= f.trenchMinFrames;
+    const matchMirror = p.mirror_frames >= f.mirrorMinFrames;
+    if (matchAssign) cntAssign++;
+    if (matchTrench) cntTrench++;
+    if (matchMirror) cntMirror++;
 
+    if (hasInteractionFilter) {
       if (f.interactionLogic === 'AND') {
         if (f.assignEnabled && !matchAssign) continue;
         if (f.trenchEnabled && !matchTrench) continue;
@@ -228,6 +237,10 @@ function applyFiltersAndSort() {
     }
     filtered.push(p);
   }
+
+  DOM.countAssign.textContent = cntAssign.toLocaleString();
+  DOM.countTrench.textContent = cntTrench.toLocaleString();
+  DOM.countMirror.textContent = cntMirror.toLocaleString();
 
   const col = state.sortCol;
   const dir = state.sortDir === 'asc' ? 1 : -1;
@@ -649,7 +662,7 @@ function bindEvents() {
 
   DOM.assignDySelect.addEventListener('change', () => {
     state.filters.assignMaxDy = Number(DOM.assignDySelect.value) || 2.5;
-    if (state.filters.assignEnabled) applyFiltersAndSort();
+    applyFiltersAndSort();
   });
 
   DOM.btnFilterTrench.addEventListener('click', () => {
@@ -660,7 +673,7 @@ function bindEvents() {
 
   DOM.trenchSecSelect.addEventListener('change', () => {
     state.filters.trenchMinFrames = Number(DOM.trenchSecSelect.value) || 15;
-    if (state.filters.trenchEnabled) applyFiltersAndSort();
+    applyFiltersAndSort();
   });
 
   DOM.btnFilterMirror.addEventListener('click', () => {
@@ -671,7 +684,7 @@ function bindEvents() {
 
   DOM.mirrorSecSelect.addEventListener('change', () => {
     state.filters.mirrorMinFrames = Number(DOM.mirrorSecSelect.value) || 15;
-    if (state.filters.mirrorEnabled) applyFiltersAndSort();
+    applyFiltersAndSort();
   });
 
   DOM.btnLogicAnd.addEventListener('click', () => {
@@ -840,10 +853,19 @@ async function init() {
   try {
     DOM.loadingStatusText.textContent = 'Downloading & decoding multi-rookie plays (ZSTD Parquet)...';
     const [rawPlays, playersArr, gamesObj] = await Promise.all([
-      fetchParquetCached('multi_rookie_plays.parquet'),
+      fetchParquetCached(`multi_rookie_plays.parquet?v=${DATA_VERSION}`, { cache: 'no-cache' }),
       fetch(`${STATIC_BASE}/players.json`).then((r) => r.json()),
       fetch(`${STATIC_BASE}/games.json`).then((r) => r.json()),
     ]);
+
+    let playsSource = rawPlays;
+    if (playsSource.length > 0 && !('assign_min_dy' in playsSource[0])) {
+      console.warn('[MultiRookie] Stale parquet detected in cache; forcing reload...');
+      playsSource = await fetchParquetCached(
+        `multi_rookie_plays.parquet?v=${DATA_VERSION}&t=${Date.now()}`,
+        { cache: 'reload' }
+      );
+    }
 
     for (const p of playersArr) {
       state.playersById.set(Number(p.nfl_id), p);
@@ -853,7 +875,7 @@ async function init() {
     }
 
     let maxRookies = 0;
-    state.allPlays = rawPlays.map((r) => {
+    state.allPlays = playsSource.map((r) => {
       const n = Number(r.n_rookies);
       if (n > maxRookies) maxRookies = n;
       return {

@@ -6,7 +6,7 @@
   <title>NFL Multi-Rookie Play Lab — 2+ Cohort Prospects Telemetry</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>">
   <link rel="stylesheet" href="./css/styles.css?v=6">
-  <link rel="stylesheet" href="./css/multi_rookie.css?v=3">
+  <link rel="stylesheet" href="./css/multi_rookie.css?v=4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -157,7 +157,7 @@
 
         <div class="mr-int-pill-group">
           <button id="btnFilterAssign" class="mr-int-pill" type="button" title="WR/TE vs CB/DB/Slot aligned closely in Y before snap">
-            <span>&#127919;</span> WR/TE vs DB Assignment
+            <span>&#127919;</span> WR/TE vs DB Assignment <span id="countAssign" class="mr-int-count"></span>
           </button>
           <select id="assignDySelect" class="mr-int-select" title="Max pre-snap lateral Δy">
             <option value="1.5">&Delta;y &le; 1.5 yd</option>
@@ -168,7 +168,7 @@
 
         <div class="mr-int-pill-group">
           <button id="btnFilterTrench" class="mr-int-pill" type="button" title="OL (C/G/T/TE) vs DL (DT/EDGE/OLB) sustained co-movement post-snap">
-            <span>&#128737;&#65039;</span> OL vs DL Trench Co-Move
+            <span>&#128737;&#65039;</span> OL vs DL Trench Co-Move <span id="countTrench" class="mr-int-count"></span>
           </button>
           <select id="trenchSecSelect" class="mr-int-select" title="Min consecutive co-movement duration">
             <option value="10">&ge; 1.0s</option>
@@ -180,7 +180,7 @@
 
         <div class="mr-int-pill-group">
           <button id="btnFilterMirror" class="mr-int-pill" type="button" title="Route runner vs coverage defender tracing similar trajectory">
-            <span>&#129694;</span> Coverage Mirroring
+            <span>&#129694;</span> Coverage Mirroring <span id="countMirror" class="mr-int-count"></span>
           </button>
           <select id="mirrorSecSelect" class="mr-int-select" title="Min consecutive mirroring duration">
             <option value="10">&ge; 1.0s</option>
@@ -361,6 +361,6 @@
 
   </main>
 
-  <script type="module" src="./js/multi_rookie_app.js?v=3"></script>
+  <script type="module" src="./js/multi_rookie_app.js?v=4"></script>
 </body>
 </html>
