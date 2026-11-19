@@ -327,46 +327,46 @@
           </div>
         </div>
 
-        <div class="canvas-panel">
-          <div class="canvas-panel-header">
-            <span class="canvas-title">Synchronized Rookie Speed (yd/s)</span>
-            <span class="section-subtitle">Click a rookie row below to highlight</span>
-          </div>
-          <div class="canvas-wrapper">
-            <canvas id="multiTimeseriesCanvas" width="520" height="440"></canvas>
+        <div class="mr-roster-section">
+          <h3 class="mr-roster-title">Rookies on This Play</h3>
+          <div class="plays-table-container mr-roster-scroll">
+            <table class="plays-table" id="mrRosterTable">
+              <thead>
+                <tr>
+                  <th style="width:30px;text-align:center;"><input type="checkbox" id="chkAllLabels" title="Show/hide all player labels on field"></th>
+                  <th>Color</th>
+                  <th>Side</th>
+                  <th>Team</th>
+                  <th>Player</th>
+                  <th>Role</th>
+                  <th>Pos</th>
+                  <th>Align</th>
+                  <th>Draft</th>
+                  <th>Live Speed</th>
+                  <th>Max Speed</th>
+                  <th>Max Accel</th>
+                  <th>Dist Run</th>
+                  <th>Peak G</th>
+                </tr>
+              </thead>
+              <tbody id="mrRosterBody">
+                <tr>
+                  <td colspan="14" class="table-empty">No play loaded.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- ROOKIE ROSTER & KINEMATICS TABLE -->
-      <div class="mr-roster-section">
-        <h3 class="mr-roster-title">Rookies on This Play</h3>
-        <div class="plays-table-container">
-          <table class="plays-table" id="mrRosterTable">
-            <thead>
-              <tr>
-                <th style="width:30px;text-align:center;"><input type="checkbox" id="chkAllLabels" title="Show/hide all player labels on field"></th>
-                <th>Color</th>
-                <th>Side</th>
-                <th>Team</th>
-                <th>Player</th>
-                <th>Role</th>
-                <th>Pos</th>
-                <th>Align</th>
-                <th>Draft</th>
-                <th>Live Speed</th>
-                <th>Max Speed</th>
-                <th>Max Accel</th>
-                <th>Dist Run</th>
-                <th>Peak G</th>
-              </tr>
-            </thead>
-            <tbody id="mrRosterBody">
-              <tr>
-                <td colspan="14" class="table-empty">No play loaded.</td>
-              </tr>
-            </tbody>
-          </table>
+      <!-- SYNCHRONIZED SPEED TIMESERIES (FULL WIDTH) -->
+      <div class="canvas-panel">
+        <div class="canvas-panel-header">
+          <span class="canvas-title">Synchronized Rookie Speed (yd/s)</span>
+          <span class="section-subtitle">Click a rookie row above to highlight</span>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="multiTimeseriesCanvas" width="1200" height="240"></canvas>
         </div>
       </div>
     </section>
