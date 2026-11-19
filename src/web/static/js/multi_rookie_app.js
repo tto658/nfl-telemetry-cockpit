@@ -88,6 +88,7 @@ function cacheDOM() {
   const ids = [
     'loadingBanner', 'loadingStatusText',
     'statFilteredCount', 'statTotalCount', 'statMaxRookies',
+    'btnToggleHeader', 'btnShowHeader',
     'filterMinRookies', 'filterSeason', 'filterPlayType', 'filterMatchup',
     'filterTeam', 'filterPosition', 'filterRookie', 'filterGame', 'filterSearch',
     'btnFilterAssign', 'assignDySelect', 'countAssign',
@@ -930,6 +931,14 @@ function bindEvents() {
   DOM.btnFieldZoomIn.addEventListener('click', () => state.fieldCanvas.zoomIn());
   DOM.btnFieldZoomOut.addEventListener('click', () => state.fieldCanvas.zoomOut());
   DOM.btnFieldZoomReset.addEventListener('click', () => state.fieldCanvas.resetZoom());
+
+  const headerEl = document.querySelector('.mr-header');
+  const setHeaderHidden = (hidden) => {
+    if (headerEl) headerEl.style.display = hidden ? 'none' : '';
+    if (DOM.btnShowHeader) DOM.btnShowHeader.style.display = hidden ? 'inline-flex' : 'none';
+  };
+  DOM.btnToggleHeader?.addEventListener('click', () => setHeaderHidden(true));
+  DOM.btnShowHeader?.addEventListener('click', () => setHeaderHidden(false));
 
   DOM.eventTimelineStrip.addEventListener('click', (e) => {
     const btn = e.target.closest('.mr-event-pill[data-frame-idx]');

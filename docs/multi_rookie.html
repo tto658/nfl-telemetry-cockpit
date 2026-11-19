@@ -6,7 +6,7 @@
   <title>NFL Multi-Rookie Play Lab — 2+ Cohort Prospects Telemetry</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>">
   <link rel="stylesheet" href="./css/styles.css?v=6">
-  <link rel="stylesheet" href="./css/multi_rookie.css?v=5">
+  <link rel="stylesheet" href="./css/multi_rookie.css?v=6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -46,10 +46,6 @@
 
     <div class="mr-header-stats">
       <div class="mr-stat-pill">
-        <span class="mr-stat-label">Matching Plays</span>
-        <span id="statFilteredCount" class="mr-stat-val text-cyan font-mono">--</span>
-      </div>
-      <div class="mr-stat-pill">
         <span class="mr-stat-label">Total 2+ Rookie Plays</span>
         <span id="statTotalCount" class="mr-stat-val font-mono">--</span>
       </div>
@@ -57,8 +53,11 @@
         <span class="mr-stat-label">Max Rookies/Play</span>
         <span id="statMaxRookies" class="mr-stat-val text-amber font-mono">--</span>
       </div>
+      <button id="btnToggleHeader" class="btn btn-sm mr-btn-reset" type="button" title="Hide header">&#9650; Hide</button>
     </div>
   </header>
+
+  <button id="btnShowHeader" class="mr-show-header-btn" type="button" style="display:none;" title="Show header">&#9660; Header</button>
 
   <!-- LOADING BANNER -->
   <div id="loadingBanner" class="mr-loading-banner">
@@ -199,9 +198,15 @@
     <!-- PLAYS TABLE SECTION -->
     <section class="section-card mr-table-section">
       <div class="mr-table-header">
-        <div>
-          <h2 class="section-title">Multi-Rookie Plays</h2>
-          <span id="tableSubtitle" class="section-subtitle">Click any play to load 10 Hz multi-player tracking telemetry</span>
+        <div class="mr-table-title-group">
+          <div>
+            <h2 class="section-title">Multi-Rookie Plays</h2>
+            <span id="tableSubtitle" class="section-subtitle">Click any play to load 10 Hz multi-player tracking telemetry</span>
+          </div>
+          <div class="mr-stat-pill">
+            <span class="mr-stat-label">Matching Plays</span>
+            <span id="statFilteredCount" class="mr-stat-val text-cyan font-mono">--</span>
+          </div>
         </div>
         <div class="mr-pagination">
           <label for="pageSizeSelect" class="mr-page-label">Rows:</label>
@@ -374,6 +379,6 @@
 
   </main>
 
-  <script type="module" src="./js/multi_rookie_app.js?v=5"></script>
+  <script type="module" src="./js/multi_rookie_app.js?v=6"></script>
 </body>
 </html>
