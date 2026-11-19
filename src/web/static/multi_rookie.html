@@ -6,7 +6,7 @@
   <title>NFL Multi-Rookie Play Lab — 2+ Cohort Prospects Telemetry</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>">
   <link rel="stylesheet" href="./css/styles.css?v=6">
-  <link rel="stylesheet" href="./css/multi_rookie.css?v=6">
+  <link rel="stylesheet" href="./css/multi_rookie.css?v=11">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -301,7 +301,10 @@
       <div class="mr-visual-grid">
         <div class="canvas-panel">
           <div class="canvas-panel-header">
-            <span class="canvas-title">2D Multi-Rookie Field Tracking (10 Hz)</span>
+            <div style="display:flex;align-items:center;gap:0.65rem;">
+              <button id="btnToggleRosterDrawer" class="btn btn-sm mr-btn-reset" type="button" title="Open Rookies on This Play drawer">&#128101; Rookies</button>
+              <span class="canvas-title">2D Multi-Rookie Field Tracking (10 Hz)</span>
+            </div>
             <div class="canvas-panel-actions">
               <div class="zoom-controls-group">
                 <button id="btnFieldZoomIn" class="btn btn-sm btn-zoom" type="button" title="Zoom In (+)">+</button>
@@ -327,9 +330,16 @@
           </div>
         </div>
 
-        <div class="mr-roster-section">
+      </div>
+
+      <!-- SLIDE-IN LEFT DRAWER FOR ROOKIES ON THIS PLAY -->
+      <div id="mrDrawerBackdrop" class="mr-drawer-backdrop"></div>
+      <aside id="mrRosterDrawer" class="mr-roster-drawer" aria-label="Rookies on This Play">
+        <div class="mr-roster-drawer-header">
           <h3 class="mr-roster-title">Rookies on This Play</h3>
-          <div class="plays-table-container mr-roster-scroll">
+          <button id="btnCloseRosterDrawer" class="btn btn-sm mr-btn-reset" type="button" title="Close">&times;</button>
+        </div>
+        <div class="plays-table-container mr-roster-scroll">
             <table class="plays-table" id="mrRosterTable">
               <thead>
                 <tr>
@@ -356,8 +366,7 @@
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
+      </aside>
 
       <!-- SYNCHRONIZED SPEED TIMESERIES (FULL WIDTH) -->
       <div class="canvas-panel">
@@ -373,6 +382,6 @@
 
   </main>
 
-  <script type="module" src="./js/multi_rookie_app.js?v=10"></script>
+  <script type="module" src="./js/multi_rookie_app.js?v=11"></script>
 </body>
 </html>

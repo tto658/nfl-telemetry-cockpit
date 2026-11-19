@@ -107,6 +107,7 @@ function cacheDOM() {
     'btnFieldZoomIn', 'btnFieldZoomOut', 'btnFieldZoomReset', 'btnFieldRotate',
     'multiFieldCanvas', 'multiTimeseriesCanvas', 'fieldLoadingOverlay',
     'fieldLoadingText', 'mrRosterBody', 'chkAllLabels',
+    'btnToggleRosterDrawer', 'btnCloseRosterDrawer', 'mrRosterDrawer', 'mrDrawerBackdrop',
   ];
   for (const id of ids) {
     DOM[id] = document.getElementById(id);
@@ -968,6 +969,14 @@ function bindEvents() {
     const isRot = state.fieldCanvas.toggleRotate();
     DOM.btnFieldRotate.classList.toggle('active', isRot);
   });
+
+  const setDrawerOpen = (open) => {
+    DOM.mrRosterDrawer?.classList.toggle('open', open);
+    DOM.mrDrawerBackdrop?.classList.toggle('open', open);
+  };
+  DOM.btnToggleRosterDrawer?.addEventListener('click', () => setDrawerOpen(true));
+  DOM.btnCloseRosterDrawer?.addEventListener('click', () => setDrawerOpen(false));
+  DOM.mrDrawerBackdrop?.addEventListener('click', () => setDrawerOpen(false));
 
   const headerEl = document.querySelector('.mr-header');
   const setHeaderHidden = (hidden) => {
