@@ -6,7 +6,7 @@
   <title>NFL Multi-Rookie Play Lab — 2+ Cohort Prospects Telemetry</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>">
   <link rel="stylesheet" href="./css/styles.css?v=6">
-  <link rel="stylesheet" href="./css/multi_rookie.css?v=4">
+  <link rel="stylesheet" href="./css/multi_rookie.css?v=5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -297,15 +297,27 @@
         </div>
       </div>
 
+      <!-- CLICKABLE EVENT TIMESTAMPS STRIP -->
+      <div id="eventTimelineStrip" class="mr-event-timeline" style="display:none;"></div>
+
       <!-- FIELD + TIMESERIES GRID -->
       <div class="mr-visual-grid">
         <div class="canvas-panel">
           <div class="canvas-panel-header">
             <span class="canvas-title">2D Multi-Rookie Field Tracking (10 Hz)</span>
+            <div class="canvas-panel-actions">
+              <div class="zoom-controls-group">
+                <button id="btnFieldZoomIn" class="btn btn-sm btn-zoom" type="button" title="Zoom In (+)">+</button>
+                <button id="btnFieldZoomOut" class="btn btn-sm btn-zoom" type="button" title="Zoom Out (−)">&minus;</button>
+                <button id="btnFieldZoomReset" class="btn btn-sm btn-zoom" type="button" title="Reset View (Double-click field)">&#10226;</button>
+              </div>
+            </div>
             <div class="canvas-legend">
-              <span class="legend-item"><span class="legend-dot" style="background:#06b6d4;"></span> Offense Rookie</span>
-              <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Defense Rookie</span>
-              <span class="legend-item"><span class="legend-arrow arrow-dir">&rarr;</span> Velocity &amp; Heading</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#06b6d4;"></span> Offense</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Defense</span>
+              <span class="legend-item">&#127944; Rec/Rush</span>
+              <span class="legend-item">&#128165; Tackle</span>
+              <span class="legend-item">&#9889; Sack</span>
             </div>
           </div>
           <div class="canvas-wrapper mr-field-wrap">
@@ -339,6 +351,7 @@
                 <th>Side</th>
                 <th>Team</th>
                 <th>Player</th>
+                <th>Role</th>
                 <th>Pos</th>
                 <th>Align</th>
                 <th>Draft</th>
@@ -361,6 +374,6 @@
 
   </main>
 
-  <script type="module" src="./js/multi_rookie_app.js?v=4"></script>
+  <script type="module" src="./js/multi_rookie_app.js?v=5"></script>
 </body>
 </html>

@@ -686,3 +686,95 @@
   color: inherit;
   background: rgba(15, 23, 42, 0.45);
 }
+
+/* Clickable Event Timestamps Strip */
+.mr-event-timeline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0.75rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.mr-event-timeline-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-right: 0.25rem;
+}
+
+.mr-event-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.mr-event-pill:hover {
+  border-color: var(--color-cyan);
+  color: var(--text-primary);
+}
+
+.mr-event-pill.active {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: #a78bfa;
+  color: #ede9fe;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.3);
+}
+
+.mr-event-pill-time {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-cyan);
+}
+
+/* Player Role Badges */
+.mr-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.42rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  margin-right: 0.2rem;
+}
+
+.mr-role-badge.rec,
+.mr-role-badge.rush {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.mr-role-badge.tgt {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.mr-role-badge.tkl {
+  background: rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+
+.mr-role-badge.sack {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}

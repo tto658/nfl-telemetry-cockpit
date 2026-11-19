@@ -8,11 +8,37 @@ import {
   MultiRookieFieldCanvas,
   MultiRookieTimeseriesCanvas,
   ROOKIE_PALETTE,
-} from './multi_rookie_field.js?v=4';
+} from './multi_rookie_field.js?v=5';
 
 const STATIC_BASE = './data';
-const DATA_VERSION = 'v4';
+const DATA_VERSION = 'v5';
 const MAX_PARQUET_CACHE = 80;
+
+const EVENT_LABELS = {
+  ball_snap: 'Snap',
+  snap_direct: 'Snap',
+  play_action: 'Play Action',
+  autoevent_playaction: 'Play Action',
+  handoff: 'Handoff',
+  pass_forward: 'Pass',
+  pass_shovel: 'Shovel',
+  pass_arrived: 'Arrived',
+  pass_outcome_caught: 'Catch',
+  pass_outcome_incomplete: 'Incomplete',
+  pass_outcome_interception: 'INT',
+  pass_outcome_touchdown: 'Pass TD',
+  pass_tipped: 'Tipped',
+  dropped_pass: 'Drop',
+  first_contact: 'Contact',
+  tackle: 'Tackle',
+  qb_sack: 'Sack',
+  qb_strip_sack: 'Strip Sack',
+  qb_slide: 'Slide',
+  qb_scramble: 'Scramble',
+  fumble: 'Fumble',
+  out_of_bounds: 'OOB',
+  touchdown: 'TD',
+};
 const parquetCache = new Map();
 
 const state = {
@@ -75,7 +101,8 @@ function cacheDOM() {
     'stageEpaVal', 'stageYdsVal', 'stageRookieCountVal', 'stageDescription', 'stageInteractionPills',
     'btnPlayPause', 'btnPlayReset', 'btnStepBack', 'btnStepFwd',
     'playbackSpeedSelect', 'playbackTimeLabel', 'playbackScrubber',
-    'playbackEventBadge', 'btnZoomAuto', 'btnZoomFull',
+    'playbackEventBadge', 'btnZoomAuto', 'btnZoomFull', 'eventTimelineStrip',
+    'btnFieldZoomIn', 'btnFieldZoomOut', 'btnFieldZoomReset',
     'multiFieldCanvas', 'multiTimeseriesCanvas', 'fieldLoadingOverlay',
     'fieldLoadingText', 'mrRosterBody',
   ];
@@ -392,6 +419,8 @@ async function selectPlay(play) {
     const tracks = [];
     let maxFrames = 0;
     const eventMap = new Map();
+    const tacklerSet = new Set((play.tackler_ids || '').split(',').filter(Boolean).map(Number));
+    const sackSet = new Set((play.sack_ids || '').split(',').filter(Boolean).map(Number));
 
     perRookieRows.forEach((item, idx) => {
       const pInfo = state.playersById.get(item.nflId) || {};
@@ -403,6 +432,20 @@ async function selectPlay(play) {
 
       const isOffense = Boolean(team && play.possession_team && team === play.possession_team);
       const color = ROOKIE_PALETTE[idx % ROOKIE_PALETTE.length];
+
+      const roles = [];
+      if (play.receiver_id === item.nflId) {
+        roles.push(play.pass_result === 'C' ? 'REC' : 'TGT');
+      }
+      if (play.rusher_id === item.nflId && !roles.includes('REC')) {
+        roles.push('RUSH');
+      }
+      if (sackSet.has(item.nflId)) {
+        roles.push('SACK');
+      }
+      if (tacklerSet.has(item.nflId)) {
+        roles.push('TKL');
+      }
 
       let maxS = 0, maxA = 0, totalDis = 0, peakG = 0;
       item.frames.forEach((fr, fIdx) => {
@@ -430,6 +473,7 @@ async function selectPlay(play) {
         align: alignments[idx] || '--',
         isOffense,
         color,
+        roles,
         frames: item.frames,
         stats: { maxS, maxA, totalDis, peakG },
       });
@@ -437,7 +481,32 @@ async function selectPlay(play) {
 
     const events = [...eventMap.entries()]
       .sort((a, b) => a[0] - b[0])
-      .map(([idx, label]) => ({ idx, label }));
+      .map(([idx, label]) => ({
+        idx,
+        label,
+        shortLabel: EVENT_LABELS[label] || label.replace(/_/g, ' '),
+      }));
+
+    const snapEv = events.find((e) => e.label === 'ball_snap' || e.label === 'snap_direct');
+    const snapIdx = snapEv ? snapEv.idx : 0;
+    if (events.length > 0) {
+      DOM.eventTimelineStrip.innerHTML =
+        '<span class="mr-event-timeline-label">Events:</span>' +
+        events
+          .map((ev) => {
+            const absSec = (ev.idx * 0.1).toFixed(1);
+            const relSec = ((ev.idx - snapIdx) * 0.1).toFixed(1);
+            const relStr = Number(relSec) >= 0 ? `+${relSec}s` : `${relSec}s`;
+            return `<button type="button" class="mr-event-pill" data-frame-idx="${ev.idx}" title="${escapeHtml(ev.label)} (${relStr} from snap)">
+              <span>${escapeHtml(ev.shortLabel)}</span>
+              <span class="mr-event-pill-time">${absSec}s</span>
+            </button>`;
+          })
+          .join('');
+      DOM.eventTimelineStrip.style.display = 'flex';
+    } else {
+      DOM.eventTimelineStrip.style.display = 'none';
+    }
 
     state.tracks = tracks;
     state.maxFrames = maxFrames;
@@ -522,10 +591,14 @@ function updateFrameUI() {
   }
   if (evLabel) {
     DOM.playbackEventBadge.style.display = 'inline-block';
-    DOM.playbackEventBadge.textContent = evLabel;
+    DOM.playbackEventBadge.textContent = EVENT_LABELS[evLabel] || evLabel;
   } else {
     DOM.playbackEventBadge.style.display = 'none';
   }
+
+  DOM.eventTimelineStrip.querySelectorAll('.mr-event-pill').forEach((btn) => {
+    btn.classList.toggle('active', Number(btn.dataset.frameIdx) === state.frameIdx);
+  });
 
   state.fieldCanvas.setFrame(state.frameIdx);
   state.tsCanvas.setFrame(state.frameIdx);
@@ -534,7 +607,7 @@ function updateFrameUI() {
 
 function renderRosterTable() {
   if (state.tracks.length === 0) {
-    DOM.mrRosterBody.innerHTML = '<tr><td colspan="12" class="table-empty">No tracking frames found for this play.</td></tr>';
+    DOM.mrRosterBody.innerHTML = '<tr><td colspan="13" class="table-empty">No tracking frames found for this play.</td></tr>';
     return;
   }
 
@@ -546,11 +619,22 @@ function renderRosterTable() {
       ? '<span class="mr-side-pill mr-side-off">OFF</span>'
       : '<span class="mr-side-pill mr-side-def">DEF</span>';
 
+    const roleBadges = (tr.roles || []).map((r) => {
+      if (r === 'REC') return '<span class="mr-role-badge rec">&#127944; REC</span>';
+      if (r === 'TGT') return '<span class="mr-role-badge tgt">&#127919; TGT</span>';
+      if (r === 'RUSH') return '<span class="mr-role-badge rush">&#127944; RUSH</span>';
+      if (r === 'SACK') return '<span class="mr-role-badge sack">&#9889; SACK</span>';
+      if (r === 'TKL') return '<span class="mr-role-badge tkl">&#128165; TKL</span>';
+      return '';
+    }).join('');
+    const roleHtml = roleBadges || '<span style="color:var(--text-muted);">—</span>';
+
     return `<tr data-nfl-id="${tr.nflId}" class="${isHi ? 'highlighted-rookie' : ''}">
       <td><span class="mr-color-swatch" style="background:${tr.color};"></span></td>
       <td>${sideHtml}</td>
       <td class="font-mono">${escapeHtml(tr.team || '--')}</td>
       <td><strong>${escapeHtml(tr.name)}</strong></td>
+      <td>${roleHtml}</td>
       <td class="font-mono">${escapeHtml(tr.pos)}</td>
       <td class="font-mono">${escapeHtml(tr.align)}</td>
       <td class="font-mono">${tr.draftYear}</td>
@@ -842,6 +926,18 @@ function bindEvents() {
     DOM.btnZoomAuto.classList.remove('active');
     state.fieldCanvas.setZoomMode('full');
   });
+
+  DOM.btnFieldZoomIn.addEventListener('click', () => state.fieldCanvas.zoomIn());
+  DOM.btnFieldZoomOut.addEventListener('click', () => state.fieldCanvas.zoomOut());
+  DOM.btnFieldZoomReset.addEventListener('click', () => state.fieldCanvas.resetZoom());
+
+  DOM.eventTimelineStrip.addEventListener('click', (e) => {
+    const btn = e.target.closest('.mr-event-pill[data-frame-idx]');
+    if (!btn) return;
+    stopPlayback();
+    state.frameIdx = Math.min(Math.max(0, state.maxFrames - 1), Number(btn.dataset.frameIdx) || 0);
+    updateFrameUI();
+  });
 }
 
 async function init() {
@@ -859,7 +955,7 @@ async function init() {
     ]);
 
     let playsSource = rawPlays;
-    if (playsSource.length > 0 && !('assign_min_dy' in playsSource[0])) {
+    if (playsSource.length > 0 && !('receiver_id' in playsSource[0])) {
       console.warn('[MultiRookie] Stale parquet detected in cache; forcing reload...');
       playsSource = await fetchParquetCached(
         `multi_rookie_plays.parquet?v=${DATA_VERSION}&t=${Date.now()}`,
@@ -903,6 +999,10 @@ async function init() {
         mirror_mean_cos: r.mirror_mean_cos != null ? Number(r.mirror_mean_cos) : null,
         mirror_off_id: r.mirror_off_id != null ? Number(r.mirror_off_id) : null,
         mirror_def_id: r.mirror_def_id != null ? Number(r.mirror_def_id) : null,
+        receiver_id: r.receiver_id != null ? Number(r.receiver_id) : null,
+        rusher_id: r.rusher_id != null ? Number(r.rusher_id) : null,
+        tackler_ids: r.tackler_ids || '',
+        sack_ids: r.sack_ids || '',
       };
     });
 

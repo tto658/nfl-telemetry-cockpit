@@ -1,9 +1,11 @@
 /**
  * Multi-Rookie 2D NFL Field & Synchronized Speed Timeseries Renderers
+ * Features interactive zoom/pan (wheel, drag, pinch, dblclick, buttons),
+ * regulation NFL field geometry with hashmarks, and role halo markers.
  */
 
 const FIELD_LENGTH = 120.0;
-const FIELD_WIDTH = 53.33;
+const FIELD_WIDTH = 53.33333;
 
 // Distinct high-contrast palette for up to 11 rookies on a single play
 export const ROOKIE_PALETTE = [
@@ -24,18 +26,188 @@ export class MultiRookieFieldCanvas {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.tracks = []; // Array of { nflId, name, pos, team, isOffense, color, frames }
+    this.tracks = []; // Array of { nflId, name, pos, team, isOffense, color, roles, frames }
     this.interactionPairs = []; // Pre-resolved O(1) indices: [{ type, offIdx, defIdx, label, color }]
     this.frameIdx = 0;
     this.zoomMode = 'auto'; // 'auto' | 'full'
     this.highlightedNflId = null;
-    this.bounds = { xMin: 0, xMax: FIELD_LENGTH, yMin: 0, yMax: FIELD_WIDTH };
+
+    this.bounds = { xMin: 0, xMax: FIELD_LENGTH, yMin: -1.5, yMax: FIELD_WIDTH + 1.5 };
+    this.baseBounds = { ...this.bounds };
+    this.isUserTransformed = false;
+    this.isPanning = false;
+    this.panStart = null;
+    this.activePointers = new Map();
+    this.prevPinchDist = 0;
+    this.transform = { scale: 1, offsetX: 0, offsetY: 0, cssWidth: 900, cssHeight: 440, dpr: 1 };
+
+    this._handleResize = this._handleResize.bind(this);
+    this._handleWheel = this._handleWheel.bind(this);
+    this._handlePointerDown = this._handlePointerDown.bind(this);
+    this._handlePointerMove = this._handlePointerMove.bind(this);
+    this._handlePointerUp = this._handlePointerUp.bind(this);
+    this._handleDblClick = this._handleDblClick.bind(this);
+
+    if (typeof ResizeObserver !== 'undefined' && this.canvas.parentElement) {
+      this.resizeObserver = new ResizeObserver(() => this._handleResize());
+      this.resizeObserver.observe(this.canvas.parentElement);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this._handleResize);
+    }
+
+    this.canvas.addEventListener('wheel', this._handleWheel, { passive: false });
+    this.canvas.addEventListener('pointerdown', this._handlePointerDown);
+    this.canvas.addEventListener('pointermove', this._handlePointerMove);
+    this.canvas.addEventListener('pointerup', this._handlePointerUp);
+    this.canvas.addEventListener('pointercancel', this._handlePointerUp);
+    this.canvas.addEventListener('dblclick', this._handleDblClick);
+
+    this.canvas.style.cursor = 'grab';
+    this.canvas.style.touchAction = 'none';
+    this._handleResize();
+  }
+
+  _handleResize() {
+    const parent = this.canvas.parentElement;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const cssWidth = rect.width;
+    const cssHeight = Math.max(340, Math.min(480, cssWidth * 0.48));
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = Math.round(cssWidth * dpr);
+    this.canvas.height = Math.round(cssHeight * dpr);
+    this.canvas.style.width = `${cssWidth}px`;
+    this.canvas.style.height = `${cssHeight}px`;
+    this.transform.cssWidth = cssWidth;
+    this.transform.cssHeight = cssHeight;
+    this.transform.dpr = dpr;
+    this._computeTransform();
+    this.render();
   }
 
   setZoomMode(mode) {
     this.zoomMode = mode;
+    this.isUserTransformed = false;
     this._computeBounds();
+    this._computeTransform();
     this.render();
+  }
+
+  zoomIn() {
+    this._zoomAtCenter(0.75);
+  }
+
+  zoomOut() {
+    this._zoomAtCenter(1.33);
+  }
+
+  resetZoom() {
+    this.isUserTransformed = false;
+    this.bounds = { ...this.baseBounds };
+    this._computeTransform();
+    this.render();
+  }
+
+  _zoomAtCenter(factor) {
+    const cx = (this.bounds.xMin + this.bounds.xMax) / 2;
+    const cy = (this.bounds.yMin + this.bounds.yMax) / 2;
+    this._applyZoomAt(cx, cy, factor);
+  }
+
+  _applyZoomAt(yardX, yardY, factor) {
+    const curSpanX = this.bounds.xMax - this.bounds.xMin;
+    const curSpanY = this.bounds.yMax - this.bounds.yMin;
+    const newSpanX = Math.max(8, Math.min(136, curSpanX * factor));
+    const newSpanY = Math.max(4, Math.min(64, curSpanY * factor));
+    const rx = (yardX - this.bounds.xMin) / curSpanX;
+    const ry = (yardY - this.bounds.yMin) / curSpanY;
+
+    this.bounds = {
+      xMin: yardX - rx * newSpanX,
+      xMax: yardX + (1 - rx) * newSpanX,
+      yMin: yardY - ry * newSpanY,
+      yMax: yardY + (1 - ry) * newSpanY,
+    };
+    this.isUserTransformed = true;
+    this._computeTransform();
+    this.render();
+  }
+
+  _handleWheel(e) {
+    e.preventDefault();
+    const rect = this.canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const [yx, yy] = this._pixelToYard(px, py);
+    const factor = e.deltaY < 0 ? 0.85 : 1.18;
+    this._applyZoomAt(yx, yy, factor);
+  }
+
+  _handlePointerDown(e) {
+    this.canvas.setPointerCapture(e.pointerId);
+    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.activePointers.size === 1) {
+      this.isPanning = true;
+      this.panStart = { x: e.clientX, y: e.clientY, bounds: { ...this.bounds } };
+      this.canvas.style.cursor = 'grabbing';
+    } else if (this.activePointers.size === 2) {
+      this.isPanning = false;
+      const pts = [...this.activePointers.values()];
+      this.prevPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    }
+  }
+
+  _handlePointerMove(e) {
+    if (!this.activePointers.has(e.pointerId)) return;
+    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (this.activePointers.size === 2) {
+      const pts = [...this.activePointers.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (this.prevPinchDist > 0 && dist > 0) {
+        const rect = this.canvas.getBoundingClientRect();
+        const midPx = (pts[0].x + pts[1].x) / 2 - rect.left;
+        const midPy = (pts[0].y + pts[1].y) / 2 - rect.top;
+        const [yx, yy] = this._pixelToYard(midPx, midPy);
+        this._applyZoomAt(yx, yy, this.prevPinchDist / dist);
+      }
+      this.prevPinchDist = dist;
+      return;
+    }
+
+    if (this.isPanning && this.panStart) {
+      const dxPx = e.clientX - this.panStart.x;
+      const dyPx = e.clientY - this.panStart.y;
+      const dxYd = dxPx / this.transform.scale;
+      const dyYd = dyPx / this.transform.scale;
+      const b = this.panStart.bounds;
+      this.bounds = {
+        xMin: b.xMin - dxYd,
+        xMax: b.xMax - dxYd,
+        yMin: b.yMin + dyYd,
+        yMax: b.yMax + dyYd,
+      };
+      this.isUserTransformed = true;
+      this._computeTransform();
+      this.render();
+    }
+  }
+
+  _handlePointerUp(e) {
+    this.activePointers.delete(e.pointerId);
+    if (this.activePointers.size < 2) this.prevPinchDist = 0;
+    if (this.activePointers.size === 0) {
+      this.isPanning = false;
+      this.panStart = null;
+      this.canvas.style.cursor = 'grab';
+    }
+  }
+
+  _handleDblClick(e) {
+    e.preventDefault();
+    this.resetZoom();
   }
 
   setHighlighted(nflId) {
@@ -47,7 +219,9 @@ export class MultiRookieFieldCanvas {
     this.tracks = tracks || [];
     this.interactionPairs = interactionPairs || [];
     this.frameIdx = 0;
+    this.isUserTransformed = false;
     this._computeBounds();
+    this._computeTransform();
     this.render();
   }
 
@@ -58,7 +232,8 @@ export class MultiRookieFieldCanvas {
 
   _computeBounds() {
     if (this.zoomMode === 'full' || this.tracks.length === 0) {
-      this.bounds = { xMin: 0, xMax: FIELD_LENGTH, yMin: -1.5, yMax: FIELD_WIDTH + 1.5 };
+      this.bounds = { xMin: -4, xMax: FIELD_LENGTH + 4, yMin: -2.5, yMax: FIELD_WIDTH + 2.5 };
+      this.baseBounds = { ...this.bounds };
       return;
     }
 
@@ -74,54 +249,63 @@ export class MultiRookieFieldCanvas {
     }
 
     if (!Number.isFinite(minX)) {
-      this.bounds = { xMin: 0, xMax: FIELD_LENGTH, yMin: -1.5, yMax: FIELD_WIDTH + 1.5 };
+      this.bounds = { xMin: -4, xMax: FIELD_LENGTH + 4, yMin: -2.5, yMax: FIELD_WIDTH + 2.5 };
+      this.baseBounds = { ...this.bounds };
       return;
     }
 
     const padX = Math.max(8, (maxX - minX) * 0.2);
     const padY = Math.max(5, (maxY - minY) * 0.2);
-    let xMin = Math.max(0, minX - padX);
-    let xMax = Math.min(FIELD_LENGTH, maxX + padX);
-    let yMin = Math.max(-1.5, minY - padY);
-    let yMax = Math.min(FIELD_WIDTH + 1.5, maxY + padY);
-
-    // Maintain reasonable aspect ratio matching canvas
-    const canvasAspect = this.canvas.width / this.canvas.height;
-    const dx = xMax - xMin;
-    const dy = yMax - yMin;
-    if (dx / dy < canvasAspect) {
-      const targetDx = dy * canvasAspect;
-      const midX = (xMin + xMax) / 2;
-      xMin = Math.max(0, midX - targetDx / 2);
-      xMax = Math.min(FIELD_LENGTH, midX + targetDx / 2);
-    } else {
-      const targetDy = dx / canvasAspect;
-      const midY = (yMin + yMax) / 2;
-      yMin = Math.max(-2, midY - targetDy / 2);
-      yMax = Math.min(FIELD_WIDTH + 2, midY + targetDy / 2);
+    const b = {
+      xMin: Math.max(-4, minX - padX),
+      xMax: Math.min(FIELD_LENGTH + 4, maxX + padX),
+      yMin: Math.max(-2.5, minY - padY),
+      yMax: Math.min(FIELD_WIDTH + 2.5, maxY + padY),
+    };
+    this.baseBounds = { ...b };
+    if (!this.isUserTransformed) {
+      this.bounds = b;
     }
+  }
 
-    this.bounds = { xMin, xMax, yMin, yMax };
+  _computeTransform() {
+    const pad = 16;
+    const w = Math.max(100, this.transform.cssWidth - pad * 2);
+    const h = Math.max(100, this.transform.cssHeight - pad * 2);
+    const spanX = Math.max(1, this.bounds.xMax - this.bounds.xMin);
+    const spanY = Math.max(1, this.bounds.yMax - this.bounds.yMin);
+    const scale = Math.min(w / spanX, h / spanY);
+    const offsetX = pad + (w - spanX * scale) / 2;
+    const offsetY = pad + (h - spanY * scale) / 2;
+    this.transform.scale = scale;
+    this.transform.offsetX = offsetX;
+    this.transform.offsetY = offsetY;
   }
 
   _toCanvas(x, y) {
-    const { xMin, xMax, yMin, yMax } = this.bounds;
-    const pad = 16;
-    const w = this.canvas.width - pad * 2;
-    const h = this.canvas.height - pad * 2;
-    const cx = pad + ((x - xMin) / (xMax - xMin)) * w;
-    // Flip Y so y=53.33 is top, y=0 is bottom (standard TV broadcast view)
-    const cy = pad + ((yMax - y) / (yMax - yMin)) * h;
+    const { scale, offsetX, offsetY, cssHeight } = this.transform;
+    const cx = offsetX + (x - this.bounds.xMin) * scale;
+    const cy = cssHeight - offsetY - (y - this.bounds.yMin) * scale;
     return [cx, cy];
+  }
+
+  _pixelToYard(px, py) {
+    const { scale, offsetX, offsetY, cssHeight } = this.transform;
+    const x = this.bounds.xMin + (px - offsetX) / scale;
+    const y = this.bounds.yMin + (cssHeight - offsetY - py) / scale;
+    return [x, y];
   }
 
   render() {
     const ctx = this.ctx;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
+    const dpr = this.transform.dpr || 1;
+    const W = this.transform.cssWidth;
+    const H = this.transform.cssHeight;
+
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
-    // Background turf
     ctx.fillStyle = '#0d1b2a';
     ctx.fillRect(0, 0, W, H);
 
@@ -132,10 +316,11 @@ export class MultiRookieFieldCanvas {
       ctx.font = '600 15px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Select a play above to render multi-rookie 10 Hz tracking', W / 2, H / 2);
+      ctx.restore();
       return;
     }
 
-    // Draw ghost paths & active trails first
+    // Ghost paths & active trails
     for (const tr of this.tracks) {
       const isDimmed = this.highlightedNflId != null && this.highlightedNflId !== tr.nflId;
       ctx.save();
@@ -158,11 +343,11 @@ export class MultiRookieFieldCanvas {
       ctx.stroke();
       ctx.restore();
 
-      // Active solid trail up to frameIdx
       ctx.save();
       ctx.globalAlpha = isDimmed ? 0.25 : 0.9;
       ctx.strokeStyle = tr.color;
       ctx.lineWidth = this.highlightedNflId === tr.nflId ? 3.5 : 2.5;
+      ctx.setLineDash([]);
       ctx.beginPath();
       started = false;
       const limit = Math.min(this.frameIdx, tr.frames.length - 1);
@@ -181,7 +366,7 @@ export class MultiRookieFieldCanvas {
       ctx.restore();
     }
 
-    // Draw O(1) pre-resolved interaction tether lines between matched rookie pairs
+    // O(1) pre-resolved interaction tether lines
     for (const pair of this.interactionPairs) {
       const trOff = this.tracks[pair.offIdx];
       const trDef = this.tracks[pair.defIdx];
@@ -216,7 +401,7 @@ export class MultiRookieFieldCanvas {
       ctx.restore();
     }
 
-    // Draw player markers & labels at frameIdx
+    // Player markers, role halos & labels
     for (const tr of this.tracks) {
       if (tr.frames.length === 0) continue;
       const f = tr.frames[Math.min(this.frameIdx, tr.frames.length - 1)];
@@ -229,7 +414,7 @@ export class MultiRookieFieldCanvas {
       ctx.save();
       ctx.globalAlpha = isDimmed ? 0.35 : 1.0;
 
-      // Velocity / direction arrow (NFL dir: 0=North/+Y, 90=East/+X)
+      // Velocity / direction arrow
       if (f.dir != null && f.s != null && f.s > 0.3) {
         const rad = ((90 - f.dir) * Math.PI) / 180;
         const arrowLen = Math.min(36, 8 + f.s * 2.6);
@@ -242,7 +427,6 @@ export class MultiRookieFieldCanvas {
         ctx.lineTo(ax, ay);
         ctx.stroke();
 
-        // Arrowhead
         const headLen = 6;
         ctx.fillStyle = tr.color;
         ctx.beginPath();
@@ -259,8 +443,24 @@ export class MultiRookieFieldCanvas {
         ctx.fill();
       }
 
-      // Outer ring by side (Offense = cyan glow, Defense = amber glow)
       const r = isHighlighted ? 9.5 : 7.5;
+      const roles = tr.roles || [];
+
+      // Distinct role halo ring (REC/RUSH = emerald, SACK = amber-gold, TKL = rose)
+      if (roles.length > 0) {
+        const roleColor = roles.includes('SACK')
+          ? '#fbbf24'
+          : roles.includes('TKL')
+            ? '#f43f5e'
+            : '#10b981';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = roleColor;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+      }
+
+      // Outer side ring
       ctx.beginPath();
       ctx.arc(cx, cy, r + 2.5, 0, Math.PI * 2);
       ctx.fillStyle = tr.isOffense ? 'rgba(6, 182, 212, 0.35)' : 'rgba(245, 158, 11, 0.35)';
@@ -275,35 +475,40 @@ export class MultiRookieFieldCanvas {
       ctx.strokeStyle = '#ffffff';
       ctx.stroke();
 
-      // Label pill
+      // Role icon prefix + label
+      let icon = '';
+      if (roles.includes('SACK')) icon = '⚡';
+      else if (roles.includes('REC') || roles.includes('RUSH')) icon = '🏈';
+      else if (roles.includes('TGT')) icon = '🎯';
+      else if (roles.includes('TKL')) icon = '💥';
+
       const lastName = (tr.name || '').split(' ').slice(-1)[0] || String(tr.nflId);
       const speedTxt = f.s != null ? ` ${f.s.toFixed(1)}` : '';
-      const label = `${lastName} (${tr.pos})${speedTxt}`;
-      ctx.font = `${isHighlighted ? '700' : '600'} 11px Inter, sans-serif`;
+      const label = `${icon ? icon + ' ' : ''}${lastName} (${tr.pos})${speedTxt}`;
+      ctx.font = `${isHighlighted || roles.length ? '700' : '600'} 11px Inter, sans-serif`;
       const tw = ctx.measureText(label).width;
       const lx = cx + 11;
       const ly = cy - 6;
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
       ctx.fillRect(lx - 3, ly - 10, tw + 6, 14);
-      ctx.fillStyle = isHighlighted ? '#ffffff' : '#e2e8f0';
+      ctx.fillStyle = isHighlighted || roles.length ? '#ffffff' : '#e2e8f0';
       ctx.textAlign = 'left';
       ctx.fillText(label, lx, ly + 1);
 
       ctx.restore();
     }
+
+    ctx.restore();
   }
 
   _drawFieldLines(ctx) {
-    // Field boundary
     const [x0, yTop] = this._toCanvas(0, FIELD_WIDTH);
     const [x120, yBot] = this._toCanvas(FIELD_LENGTH, 0);
 
-    // Turf grass inside field
     ctx.fillStyle = '#112233';
     ctx.fillRect(x0, yTop, x120 - x0, yBot - yTop);
 
-    // Endzones (0..10 and 110..120)
     const [x10] = this._toCanvas(10, 0);
     const [x110] = this._toCanvas(110, 0);
     ctx.fillStyle = 'rgba(30, 41, 59, 0.75)';
@@ -313,16 +518,20 @@ export class MultiRookieFieldCanvas {
     // Yard lines every 5 yards
     for (let x = 0; x <= 120; x += 5) {
       const [cx] = this._toCanvas(x, 0);
-      if (cx < 0 || cx > this.canvas.width) continue;
+      if (cx < -20 || cx > this.transform.cssWidth + 20) continue;
       const isTen = x % 10 === 0;
-      ctx.strokeStyle = x === 10 || x === 110 ? 'rgba(248, 250, 252, 0.6)' : isTen ? 'rgba(148, 163, 184, 0.28)' : 'rgba(148, 163, 184, 0.12)';
+      ctx.strokeStyle =
+        x === 10 || x === 110
+          ? 'rgba(248, 250, 252, 0.6)'
+          : isTen
+            ? 'rgba(148, 163, 184, 0.28)'
+            : 'rgba(148, 163, 184, 0.12)';
       ctx.lineWidth = x === 10 || x === 110 ? 2 : 1;
       ctx.beginPath();
       ctx.moveTo(cx, yTop);
       ctx.lineTo(cx, yBot);
       ctx.stroke();
 
-      // Yard numbers every 10 yards (10..90 -> 10..50..10)
       if (isTen && x >= 20 && x <= 100) {
         const yd = x <= 60 ? x - 10 : 110 - x;
         ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
@@ -332,6 +541,23 @@ export class MultiRookieFieldCanvas {
         ctx.fillText(String(yd), cx, yTop + 16);
       }
     }
+
+    // Regulation NFL hashmarks (23.58 yd from sidelines) every 1 yard
+    const [, yHashLow] = this._toCanvas(0, 23.58);
+    const [, yHashHigh] = this._toCanvas(0, FIELD_WIDTH - 23.58);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 11; x <= 109; x++) {
+      if (x % 5 === 0) continue;
+      const [hx] = this._toCanvas(x, 0);
+      if (hx < 0 || hx > this.transform.cssWidth) continue;
+      ctx.moveTo(hx, yHashLow - 3);
+      ctx.lineTo(hx, yHashLow + 3);
+      ctx.moveTo(hx, yHashHigh - 3);
+      ctx.lineTo(hx, yHashHigh + 3);
+    }
+    ctx.stroke();
 
     // Sidelines
     ctx.strokeStyle = 'rgba(248, 250, 252, 0.55)';
@@ -348,7 +574,7 @@ export class MultiRookieTimeseriesCanvas {
     this.frameIdx = 0;
     this.maxFrames = 0;
     this.highlightedNflId = null;
-    this.events = []; // [{ idx, label }]
+    this.events = [];
   }
 
   setTracks(tracks, maxFrames, events = []) {
@@ -389,9 +615,7 @@ export class MultiRookieTimeseriesCanvas {
       return;
     }
 
-    const maxSpeed = 12.0; // yd/s
-
-    // Grid lines (0, 3, 6, 9, 12 yd/s)
+    const maxSpeed = 12.0;
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
     ctx.lineWidth = 1;
     ctx.fillStyle = '#64748b';
@@ -406,7 +630,6 @@ export class MultiRookieTimeseriesCanvas {
       ctx.fillText(`${s}`, padL - 6, y + 3);
     }
 
-    // X-axis time ticks
     ctx.textAlign = 'center';
     const totalSec = (this.maxFrames - 1) * 0.1;
     const stepSec = totalSec > 8 ? 2 : 1;
@@ -416,7 +639,6 @@ export class MultiRookieTimeseriesCanvas {
       ctx.fillText(`${sec.toFixed(0)}s`, x, H - 8);
     }
 
-    // Event vertical lines
     for (const ev of this.events) {
       const x = padL + (ev.idx / (this.maxFrames - 1)) * plotW;
       ctx.save();
@@ -429,11 +651,10 @@ export class MultiRookieTimeseriesCanvas {
       ctx.fillStyle = '#c4b5fd';
       ctx.font = '600 9px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(ev.label, x, padT - 7);
+      ctx.fillText(ev.shortLabel || ev.label, x, padT - 7);
       ctx.restore();
     }
 
-    // Speed curves per rookie
     for (const tr of this.tracks) {
       const isHighlighted = this.highlightedNflId === tr.nflId;
       const isDimmed = this.highlightedNflId != null && !isHighlighted;
@@ -460,7 +681,6 @@ export class MultiRookieTimeseriesCanvas {
       ctx.restore();
     }
 
-    // Live playhead
     const px = padL + (Math.min(this.frameIdx, this.maxFrames - 1) / (this.maxFrames - 1)) * plotW;
     ctx.strokeStyle = '#f8fafc';
     ctx.lineWidth = 1.5;

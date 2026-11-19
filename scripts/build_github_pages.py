@@ -406,6 +406,12 @@ def export_multi_rookie_plays(data_dir: Path) -> Path:
             "offense_formation",
             "team_coverage_man_zone",
             "play_description",
+            "target",
+            "rec_yards",
+            "rush_yards",
+            "tackle",
+            "assist",
+            "sack",
         ])
         .join(p, on="nfl_id", how="inner")
         .with_columns(pl.len().over(["game_id", "play_id"]).alias("n_rookies"))
@@ -455,6 +461,18 @@ def export_multi_rookie_plays(data_dir: Path) -> Path:
             pl.col("nfl_position").unique().sort().str.join(",").alias("rookie_positions"),
             pl.col("team_abbr").unique().sort().str.join(",").alias("rookie_teams"),
             pl.col("lined_up_position").fill_null("").str.join(",").alias("rookie_alignments"),
+            pl.col("nfl_id").filter(pl.col("target").fill_null(False)).first().cast(pl.Int32).alias("receiver_id"),
+            pl.col("nfl_id").filter(pl.col("rush_yards").is_not_null()).first().cast(pl.Int32).alias("rusher_id"),
+            pl.col("nfl_id")
+            .filter((pl.col("tackle").fill_null(0) > 0) | (pl.col("assist").fill_null(0) > 0))
+            .cast(pl.Utf8)
+            .str.join(",")
+            .alias("tackler_ids"),
+            pl.col("nfl_id")
+            .filter(pl.col("sack").fill_null(0) > 0)
+            .cast(pl.Utf8)
+            .str.join(",")
+            .alias("sack_ids"),
         ])
         .collect()
     )
