@@ -525,9 +525,8 @@ export class MultiRookieFieldCanvas {
         else if (roles.includes('TGT')) icon = '🎯';
         else if (roles.includes('TKL')) icon = '💥';
 
-        const lastName = (tr.name || '').split(' ').slice(-1)[0] || String(tr.nflId);
-        const speedTxt = f.s != null ? ` ${f.s.toFixed(1)}` : '';
-        const label = `${icon ? icon + ' ' : ''}${lastName} (${tr.pos})${speedTxt}`;
+        const alignPos = tr.align && tr.align !== '--' ? tr.align : tr.pos;
+        const label = `${icon ? icon + ' ' : ''}${alignPos} (${tr.pos})`;
         ctx.font = `${isHighlighted || roles.length ? '700' : '600'} 10.5px Inter, sans-serif`;
         const tw = ctx.measureText(label).width;
         const [ox, oy] = LABEL_OFFSETS[trIdx % LABEL_OFFSETS.length];

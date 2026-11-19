@@ -8,7 +8,7 @@ import {
   MultiRookieFieldCanvas,
   MultiRookieTimeseriesCanvas,
   ROOKIE_PALETTE,
-} from './multi_rookie_field.js?v=9';
+} from './multi_rookie_field.js?v=10';
 
 const STATIC_BASE = './data';
 const DATA_VERSION = 'v5';
