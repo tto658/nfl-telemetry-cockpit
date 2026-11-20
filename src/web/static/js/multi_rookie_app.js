@@ -11,7 +11,7 @@ import {
 } from './multi_rookie_field.js?v=10';
 
 const STATIC_BASE = './data';
-const DATA_VERSION = 'v5';
+const DATA_VERSION = 'v12';
 const MAX_PARQUET_CACHE = 80;
 
 const EVENT_LABELS = {
@@ -379,9 +379,10 @@ async function selectPlay(play) {
     DOM.stageFormationBadge.style.display = 'none';
   }
 
-  if (play.team_coverage_man_zone) {
+  if (play.team_coverage_man_zone || play.team_coverage_type) {
     DOM.stageCoverageBadge.style.display = 'inline-block';
-    DOM.stageCoverageBadge.textContent = play.team_coverage_man_zone;
+    const parts = [play.team_coverage_man_zone, play.team_coverage_type].filter(Boolean);
+    DOM.stageCoverageBadge.textContent = parts.join(' • ');
   } else {
     DOM.stageCoverageBadge.style.display = 'none';
   }
@@ -1010,7 +1011,7 @@ async function init() {
     ]);
 
     let playsSource = rawPlays;
-    if (playsSource.length > 0 && !('receiver_id' in playsSource[0])) {
+    if (playsSource.length > 0 && !('team_coverage_type' in playsSource[0])) {
       console.warn('[MultiRookie] Stale parquet detected in cache; forcing reload...');
       playsSource = await fetchParquetCached(
         `multi_rookie_plays.parquet?v=${DATA_VERSION}&t=${Date.now()}`,
